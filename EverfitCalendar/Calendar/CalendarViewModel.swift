@@ -46,57 +46,60 @@ final class CalendarViewModel {
 
     func load() {
         loadTask?.cancel()
-
-        let days = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
-        let hasPayload = lastDTO != nil
-        if hasPayload, let dto = lastDTO {
-            state = CalendarViewState(
-                days: mappedDays(from: dto, weekDays: days),
-                phase: .refreshing,
-                errorMessage: nil,
-                showsRetry: false
-            )
-        } else {
-            state = CalendarViewState(
-                days: days,
-                phase: .initialLoading,
-                errorMessage: nil,
-                showsRetry: false
-            )
+        if lastDTO != nil {
+            publishMappedWeek(phase: .refreshing)
         }
-
         loadTask = Task { [weak self] in
             await self?.performLoad()
         }
     }
 
     private func performLoad() async {
+        let snapshot = await repository.loadCachedSnapshot()
+        guard !Task.isCancelled, snapshot.error?.isCancelled != true else { return }
+
+        completionOverrides = snapshot.overrides.merging(completionOverrides) { _, current in current }
+
+        if let dto = snapshot.dto {
+            lastDTO = dto
+            publishMappedWeek(phase: .refreshing)
+        } else if lastDTO == nil {
+            state = CalendarViewState(
+                days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
+                phase: .initialLoading,
+                errorMessage: nil,
+                showsRetry: false
+            )
+        }
+
+        if let cacheError = snapshot.error {
+            logger.error("Cache snapshot issue: \(cacheError.localizedDescription, privacy: .public)")
+        }
+
         let result = await repository.refreshWeek()
         guard !Task.isCancelled else { return }
-
         if result.error?.isCancelled == true {
             return
         }
-
-        let weekDays = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
 
         if let dto = result.dto {
             lastDTO = dto
             if let error = result.error {
                 logger.error("Showing data from \(String(describing: result.source), privacy: .public) after \(error.localizedDescription, privacy: .public)")
             }
-            state = CalendarViewState(
-                days: mappedDays(from: dto, weekDays: weekDays),
-                phase: .loaded,
-                errorMessage: nil,
-                showsRetry: false
-            )
+            publishMappedWeek(phase: .loaded)
+            return
+        }
+
+        if lastDTO != nil {
+            logger.error("Refresh failed; keeping cached week: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
+            publishMappedWeek(phase: .loaded)
             return
         }
 
         logger.error("No workouts available: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
         state = CalendarViewState(
-            days: weekDays,
+            days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
             phase: .failedEmpty,
             errorMessage: "Couldn't load workouts.",
             showsRetry: true
@@ -108,8 +111,13 @@ final class CalendarViewModel {
         guard let workout = workout(id: id) else { return }
         guard workout.isTappable else { return }
 
-        completionOverrides[id] = !workout.isCompleted
+        let updated = !workout.isCompleted
+        completionOverrides[id] = updated
         publishMappedWeek(phase: state.phase == .initialLoading ? .loaded : state.phase)
+
+        Task { [weak self] in
+            await self?.repository.setOverride(id: id, isCompleted: updated)
+        }
     }
 
     private func publishMappedWeek(phase: DataPhase) {

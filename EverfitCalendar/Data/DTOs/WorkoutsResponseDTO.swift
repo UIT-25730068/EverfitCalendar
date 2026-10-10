@@ -5,11 +5,11 @@
 
 import Foundation
 
-struct WorkoutsResponseDTO: Codable, Equatable {
+struct WorkoutsResponseDTO: Codable, Equatable, Sendable {
     let data: [DayDTO]
 }
 
-struct DayDTO: Codable, Equatable {
+struct DayDTO: Codable, Equatable, Sendable {
     let id: String
     let day: Int
     let assignments: [AssignmentDTO]
@@ -21,7 +21,7 @@ struct DayDTO: Codable, Equatable {
     }
 }
 
-struct AssignmentDTO: Codable, Equatable {
+struct AssignmentDTO: Codable, Equatable, Sendable {
     let id: String
     let title: String
     let status: Int

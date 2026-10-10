@@ -82,11 +82,91 @@ final class CalendarViewModelTests: XCTestCase {
         XCTAssertEqual(workout(viewModel, id: "past")?.displayStatus, .completed)
     }
 
+    func testWarmLaunchShowsCacheBeforeNetwork() async {
+        let cached = WorkoutsResponseDTO(data: [
+            DayDTO(id: "d0", day: 0, assignments: [
+                AssignmentDTO(id: "past", title: "Cached legs", status: 1, totalExercise: 5)
+            ])
+        ])
+        let network = WorkoutsResponseDTO(data: [
+            DayDTO(id: "d0", day: 0, assignments: [
+                AssignmentDTO(id: "past", title: "Network legs", status: 1, totalExercise: 5)
+            ])
+        ])
+
+        let cache = InMemoryWorkoutsCache()
+        try? await cache.save(cached)
+        let completions = InMemoryCompletionStore()
+
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: StubAPI(result: .success(network), delayNanoseconds: 150_000_000),
+                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                cache: cache,
+                completions: completions
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        let sawCached = expectation(description: "cached")
+        let sawNetwork = expectation(description: "network")
+        viewModel.onChange = { state in
+            let title = state.days.flatMap(\.workouts).first(where: { $0.id == "past" })?.title
+            if title == "Cached legs", state.phase == .refreshing {
+                sawCached.fulfill()
+            }
+            if title == "Network legs", state.phase == .loaded {
+                sawNetwork.fulfill()
+            }
+        }
+        viewModel.load()
+        await fulfillment(of: [sawCached, sawNetwork], timeout: 2, enforceOrder: true)
+    }
+
+    func testTogglePersistsOverrideForNextViewModel() async {
+        let cache = InMemoryWorkoutsCache()
+        let completions = InMemoryCompletionStore()
+        let repository = WorkoutsRepository(
+            api: StubAPI(result: .success(dto)),
+            fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+            cache: cache,
+            completions: completions
+        )
+
+        let first = CalendarViewModel(
+            repository: repository,
+            now: { [today] in today! },
+            calendar: calendar
+        )
+        await loadAndWait(first)
+        first.toggleCompletion(id: "past")
+        try? await Task.sleep(nanoseconds: 50_000_000)
+
+        let stored = try? await completions.load()
+        XCTAssertEqual(stored?["past"], true)
+
+        let second = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: StubAPI(result: .success(dto)),
+                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                cache: cache,
+                completions: completions
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+        await loadAndWait(second)
+        XCTAssertEqual(workout(second, id: "past")?.displayStatus, .completed)
+    }
+
     private func makeViewModel() -> CalendarViewModel {
         CalendarViewModel(
             repository: WorkoutsRepository(
-                api: ImmediateAPI(dto: dto),
-                fallback: FailingFallback()
+                api: StubAPI(result: .success(dto)),
+                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                cache: InMemoryWorkoutsCache(),
+                completions: InMemoryCompletionStore()
             ),
             now: { [today] in today! },
             calendar: calendar
@@ -108,19 +188,5 @@ final class CalendarViewModelTests: XCTestCase {
 
     private func workout(_ viewModel: CalendarViewModel, id: String) -> Workout? {
         viewModel.state.days.flatMap(\.workouts).first { $0.id == id }
-    }
-}
-
-private struct ImmediateAPI: WorkoutsFetching {
-    let dto: WorkoutsResponseDTO
-
-    func fetchWorkouts() async throws -> WorkoutsResponseDTO {
-        dto
-    }
-}
-
-private struct FailingFallback: WorkoutsFallbackLoading {
-    func loadFallback() throws -> WorkoutsResponseDTO {
-        throw WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none"))
     }
 }
