@@ -13,6 +13,7 @@ final class DayRowView: UIView {
         label.textAlignment = .left
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.7
+        label.setContentHuggingPriority(.required, for: .vertical)
         return label
     }()
 
@@ -22,6 +23,7 @@ final class DayRowView: UIView {
         label.textAlignment = .left
         label.adjustsFontSizeToFitWidth = true
         label.minimumScaleFactor = 0.7
+        label.setContentHuggingPriority(.required, for: .vertical)
         return label
     }()
 
@@ -30,7 +32,9 @@ final class DayRowView: UIView {
         stack.axis = .vertical
         stack.alignment = .leading
         stack.spacing = CalendarStyle.weekdayToDateSpacing
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.setContentHuggingPriority(.required, for: .horizontal)
+        stack.setContentCompressionResistancePriority(.required, for: .horizontal)
+        stack.setContentHuggingPriority(.defaultHigh, for: .vertical)
         return stack
     }()
 
@@ -39,8 +43,18 @@ final class DayRowView: UIView {
         stack.axis = .vertical
         stack.spacing = CalendarStyle.workoutStackSpacing
         stack.alignment = .fill
-        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.distribution = .fill
+        stack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return stack
+    }()
+
+    private let placeholderView: UIView = {
+        let view = UIView()
+        view.backgroundColor = CalendarStyle.placeholderFill
+        view.layer.cornerRadius = CalendarStyle.placeholderCornerRadius
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
     }()
 
     private let separator: UIView = {
@@ -50,9 +64,12 @@ final class DayRowView: UIView {
         return view
     }()
 
+    private var cardViews: [WorkoutCardView] = []
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         translatesAutoresizingMaskIntoConstraints = false
+        insetsLayoutMarginsFromSafeArea = false
         setupLayout()
     }
 
@@ -75,15 +92,24 @@ final class DayRowView: UIView {
     private func setupLayout() {
         dateHeaderStack.addArrangedSubview(weekdayLabel)
         dateHeaderStack.addArrangedSubview(dateLabel)
+        workoutStack.addArrangedSubview(placeholderView)
+        placeholderView.isHidden = true
 
         let contentStack = UIStackView(arrangedSubviews: [dateHeaderStack, workoutStack])
         contentStack.axis = .horizontal
         contentStack.alignment = .top
+        contentStack.distribution = .fill
         contentStack.spacing = CalendarStyle.dateWorkoutSpacing
+        contentStack.insetsLayoutMarginsFromSafeArea = false
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(contentStack)
         addSubview(separator)
+
+        let placeholderHeight = placeholderView.heightAnchor.constraint(
+            equalToConstant: CalendarStyle.placeholderHeight
+        )
+        placeholderHeight.priority = UILayoutPriority(999)
 
         NSLayoutConstraint.activate([
             dateHeaderStack.widthAnchor.constraint(equalToConstant: CalendarStyle.dateHeaderWidth),
@@ -96,33 +122,35 @@ final class DayRowView: UIView {
             separator.leadingAnchor.constraint(equalTo: leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: bottomAnchor),
-            separator.heightAnchor.constraint(equalToConstant: CalendarStyle.hairlineWidth)
+            separator.heightAnchor.constraint(equalToConstant: CalendarStyle.hairlineWidth),
+            placeholderHeight
         ])
 
-        setContentHuggingPriority(.required, for: .vertical)
-        setContentCompressionResistancePriority(.required, for: .vertical)
+        setContentHuggingPriority(.defaultHigh, for: .vertical)
+        setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
     }
 
     private func rebuildWorkoutArea(workouts: [Workout], showsPlaceholder: Bool) {
-        workoutStack.arrangedSubviews.forEach { view in
-            workoutStack.removeArrangedSubview(view)
-            view.removeFromSuperview()
-        }
+        placeholderView.isHidden = !showsPlaceholder
 
         if showsPlaceholder {
-            let placeholder = UIView()
-            placeholder.backgroundColor = CalendarStyle.placeholderFill
-            placeholder.layer.cornerRadius = CalendarStyle.placeholderCornerRadius
-            placeholder.translatesAutoresizingMaskIntoConstraints = false
-            placeholder.heightAnchor.constraint(equalToConstant: CalendarStyle.placeholderHeight).isActive = true
-            workoutStack.addArrangedSubview(placeholder)
+            cardViews.forEach { $0.isHidden = true }
             return
         }
 
-        workouts.forEach { workout in
+        while cardViews.count < workouts.count {
             let card = WorkoutCardView()
-            card.configure(workout)
+            cardViews.append(card)
             workoutStack.addArrangedSubview(card)
+        }
+
+        for (index, card) in cardViews.enumerated() {
+            if index < workouts.count {
+                card.isHidden = false
+                card.configure(workouts[index])
+            } else {
+                card.isHidden = true
+            }
         }
     }
 }

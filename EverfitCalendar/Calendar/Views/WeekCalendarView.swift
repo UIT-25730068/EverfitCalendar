@@ -11,6 +11,8 @@ final class WeekCalendarView: UIView {
         let scrollView = UIScrollView()
         scrollView.alwaysBounceVertical = true
         scrollView.showsHorizontalScrollIndicator = false
+        scrollView.contentInsetAdjustmentBehavior = .never
+        scrollView.insetsLayoutMarginsFromSafeArea = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         return scrollView
     }()
@@ -27,6 +29,7 @@ final class WeekCalendarView: UIView {
         stack.distribution = .fill
         stack.alignment = .fill
         stack.spacing = 0
+        stack.insetsLayoutMarginsFromSafeArea = false
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
     }()

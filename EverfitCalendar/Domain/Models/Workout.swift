@@ -13,6 +13,6 @@ struct Workout: Equatable {
     let displayStatus: WorkoutDisplayStatus
 
     var isTappable: Bool {
-        displayStatus != .future
+        displayStatus.isTappable
     }
 }

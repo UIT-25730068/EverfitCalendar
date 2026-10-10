@@ -5,14 +5,12 @@
 
 import Foundation
 
-enum WorkoutStatusResolver {
+/// Pure date-vs-completion rules. Inject `today` and `calendar` for tests.
+struct WorkoutStatusResolver: Equatable {
+    var today: Date
+    var calendar: Calendar
 
-    static func resolve(
-        date: Date,
-        today: Date,
-        isCompleted: Bool,
-        calendar: Calendar = .current
-    ) -> WorkoutDisplayStatus {
+    func resolve(date: Date, isCompleted: Bool) -> WorkoutDisplayStatus {
         let day = calendar.startOfDay(for: date)
         let todayStart = calendar.startOfDay(for: today)
 

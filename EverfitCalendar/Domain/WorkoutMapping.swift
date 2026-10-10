@@ -18,8 +18,7 @@ enum WorkoutMapping {
     static func map(
         dto: WorkoutsResponseDTO,
         weekDays: [CalendarDay],
-        today: Date,
-        calendar: Calendar = .current,
+        resolver: WorkoutStatusResolver,
         overrides: [String: Bool] = [:]
     ) -> [CalendarDay] {
         var daysByIndex: [Int: DayDTO] = [:]
@@ -37,12 +36,7 @@ enum WorkoutMapping {
                     title: assignment.title,
                     exerciseCount: assignment.totalExercise,
                     isCompleted: isCompleted,
-                    displayStatus: WorkoutStatusResolver.resolve(
-                        date: header.date,
-                        today: today,
-                        isCompleted: isCompleted,
-                        calendar: calendar
-                    )
+                    displayStatus: resolver.resolve(date: header.date, isCompleted: isCompleted)
                 )
             }
 

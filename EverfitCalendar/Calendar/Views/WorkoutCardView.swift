@@ -12,6 +12,8 @@ final class WorkoutCardView: UIView {
         label.font = CalendarStyle.cardTitleFont
         label.numberOfLines = 1
         label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return label
     }()
 
@@ -19,6 +21,8 @@ final class WorkoutCardView: UIView {
         let label = UILabel()
         label.font = CalendarStyle.cardMetaFont
         label.numberOfLines = 1
+        label.lineBreakMode = .byTruncatingTail
+        label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }()
 
@@ -26,16 +30,18 @@ final class WorkoutCardView: UIView {
         let imageView = UIImageView()
         imageView.image = UIImage(systemName: "checkmark")
         imageView.contentMode = .scaleAspectFit
-        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.isHidden = true
+        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        imageView.setContentHuggingPriority(.required, for: .horizontal)
+        imageView.setContentCompressionResistancePriority(.required, for: .horizontal)
         return imageView
     }()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         translatesAutoresizingMaskIntoConstraints = false
+        insetsLayoutMarginsFromSafeArea = false
         layer.cornerRadius = CalendarStyle.cardCornerRadius
+        clipsToBounds = true
         setupLayout()
     }
 
@@ -45,34 +51,34 @@ final class WorkoutCardView: UIView {
 
     func configure(_ workout: Workout) {
         titleLabel.text = workout.title
+        metaLabel.text = workout.displayStatus.metaText(exerciseCount: workout.exerciseCount)
         isUserInteractionEnabled = workout.isTappable
+        applyStyle(for: workout.displayStatus)
+        setNeedsLayout()
+    }
 
-        switch workout.displayStatus {
+    private func applyStyle(for status: WorkoutDisplayStatus) {
+        let showCheckmark = status == .completed
+        checkmarkView.isHidden = !showCheckmark
+
+        switch status {
         case .missed:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.dateColor
             metaLabel.textColor = CalendarStyle.missedTextColor
-            metaLabel.text = "Missed • \(workout.exerciseCount) exercises"
-            checkmarkView.isHidden = true
         case .assigned:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.dateColor
             metaLabel.textColor = CalendarStyle.assignedMetaColor
-            metaLabel.text = "\(workout.exerciseCount) exercises"
-            checkmarkView.isHidden = true
         case .completed:
             backgroundColor = CalendarStyle.completedCardBackground
             titleLabel.textColor = CalendarStyle.completedTextColor
             metaLabel.textColor = CalendarStyle.completedTextColor.withAlphaComponent(0.9)
-            metaLabel.text = "Completed"
             checkmarkView.tintColor = CalendarStyle.completedTextColor
-            checkmarkView.isHidden = false
         case .future:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.futureTextColor
             metaLabel.textColor = CalendarStyle.futureTextColor
-            metaLabel.text = "\(workout.exerciseCount) exercises"
-            checkmarkView.isHidden = true
         }
     }
 
@@ -81,23 +87,28 @@ final class WorkoutCardView: UIView {
         textStack.axis = .vertical
         textStack.spacing = CalendarStyle.cardTitleMetaSpacing
         textStack.alignment = .fill
+        textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         let content = UIStackView(arrangedSubviews: [textStack, checkmarkView])
         content.axis = .horizontal
         content.alignment = .center
         content.spacing = 8
+        content.insetsLayoutMarginsFromSafeArea = false
         content.translatesAutoresizingMaskIntoConstraints = false
 
         addSubview(content)
+
+        let insets = CalendarStyle.cardContentInsets
         NSLayoutConstraint.activate([
-            content.topAnchor.constraint(equalTo: topAnchor, constant: CalendarStyle.cardContentInsets.top),
-            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: CalendarStyle.cardContentInsets.left),
-            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -CalendarStyle.cardContentInsets.right),
-            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -CalendarStyle.cardContentInsets.bottom),
+            content.topAnchor.constraint(equalTo: topAnchor, constant: insets.top),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
             checkmarkView.widthAnchor.constraint(equalToConstant: 20),
             checkmarkView.heightAnchor.constraint(equalToConstant: 20)
         ])
-        checkmarkView.setContentHuggingPriority(.required, for: .horizontal)
-        checkmarkView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        setContentHuggingPriority(.defaultHigh, for: .vertical)
+        setContentCompressionResistancePriority(.required, for: .vertical)
     }
 }

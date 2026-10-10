@@ -12,6 +12,7 @@ final class CalendarViewModel {
     private let repository: WorkoutsRepository
     private let weekFactory: CalendarWeekFactory
     private let now: () -> Date
+    private let calendar: Calendar
     private let logger = Logger(subsystem: "com.ThanhND.EverfitCalendar", category: "Calendar")
 
     private var loadTask: Task<Void, Never>?
@@ -26,12 +27,14 @@ final class CalendarViewModel {
     init(
         repository: WorkoutsRepository = WorkoutsRepository(),
         weekFactory: CalendarWeekFactory = CalendarWeekFactory(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        calendar: Calendar = .current
     ) {
         self.repository = repository
         self.weekFactory = weekFactory
         self.now = now
-        let days = weekFactory.makeCurrentWeek(for: now())
+        self.calendar = calendar
+        let days = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
         state = CalendarViewState(
             days: days,
             phase: .initialLoading,
@@ -43,7 +46,7 @@ final class CalendarViewModel {
     func load() {
         loadTask?.cancel()
 
-        let days = weekFactory.makeCurrentWeek(for: now())
+        let days = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
         let hasPayload = lastDTO != nil
         if hasPayload, let dto = lastDTO {
             state = CalendarViewState(
@@ -74,7 +77,7 @@ final class CalendarViewModel {
             return
         }
 
-        let weekDays = weekFactory.makeCurrentWeek(for: now())
+        let weekDays = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
 
         if let dto = result.dto {
             lastDTO = dto
@@ -100,10 +103,11 @@ final class CalendarViewModel {
     }
 
     private func mappedDays(from dto: WorkoutsResponseDTO, weekDays: [CalendarDay]) -> [CalendarDay] {
-        WorkoutMapping.map(
+        let resolver = WorkoutStatusResolver(today: now(), calendar: calendar)
+        return WorkoutMapping.map(
             dto: dto,
             weekDays: weekDays,
-            today: now()
+            resolver: resolver
         )
     }
 }
