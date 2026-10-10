@@ -7,6 +7,11 @@ import UIKit
 
 final class WorkoutCardView: UIView {
 
+    var onTap: ((String) -> Void)?
+
+    private var workoutID: String?
+    private var allowsToggle = false
+
     private let titleLabel: UILabel = {
         let label = UILabel()
         label.font = CalendarStyle.cardTitleFont
@@ -43,6 +48,9 @@ final class WorkoutCardView: UIView {
         layer.cornerRadius = CalendarStyle.cardCornerRadius
         clipsToBounds = true
         setupLayout()
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        addGestureRecognizer(tap)
+        isAccessibilityElement = true
     }
 
     required init?(coder: NSCoder) {
@@ -50,11 +58,21 @@ final class WorkoutCardView: UIView {
     }
 
     func configure(_ workout: Workout) {
+        workoutID = workout.id
+        allowsToggle = workout.isTappable
+        isUserInteractionEnabled = true
+        accessibilityTraits = workout.isTappable ? [.button] : [.staticText]
+        accessibilityLabel = workout.title
+        accessibilityHint = workout.isTappable ? "Marks the workout complete or incomplete" : nil
         titleLabel.text = workout.title
         metaLabel.text = workout.displayStatus.metaText(exerciseCount: workout.exerciseCount)
-        isUserInteractionEnabled = workout.isTappable
         applyStyle(for: workout.displayStatus)
         setNeedsLayout()
+    }
+
+    @objc private func handleTap() {
+        guard allowsToggle, let workoutID else { return }
+        onTap?(workoutID)
     }
 
     private func applyStyle(for status: WorkoutDisplayStatus) {

@@ -34,12 +34,19 @@ final class WeekCalendarView: UIView {
         return stack
     }()
 
+    var onWorkoutTap: ((String) -> Void)?
+
     private let rows: [DayRowView] = (0..<7).map { _ in DayRowView() }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         translatesAutoresizingMaskIntoConstraints = false
-        rows.forEach { stackView.addArrangedSubview($0) }
+        rows.forEach { row in
+            row.onWorkoutTap = { [weak self] id in
+                self?.onWorkoutTap?(id)
+            }
+            stackView.addArrangedSubview(row)
+        }
         setupLayout()
     }
 

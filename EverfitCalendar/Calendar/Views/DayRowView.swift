@@ -64,6 +64,8 @@ final class DayRowView: UIView {
         return view
     }()
 
+    var onWorkoutTap: ((String) -> Void)?
+
     private var cardViews: [WorkoutCardView] = []
 
     override init(frame: CGRect) {
@@ -140,6 +142,9 @@ final class DayRowView: UIView {
 
         while cardViews.count < workouts.count {
             let card = WorkoutCardView()
+            card.onTap = { [weak self] id in
+                self?.onWorkoutTap?(id)
+            }
             cardViews.append(card)
             workoutStack.addArrangedSubview(card)
         }

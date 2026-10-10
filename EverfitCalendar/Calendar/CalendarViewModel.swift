@@ -17,6 +17,7 @@ final class CalendarViewModel {
 
     private var loadTask: Task<Void, Never>?
     private var lastDTO: WorkoutsResponseDTO?
+    private var completionOverrides: [String: Bool] = [:]
 
     var onChange: ((CalendarViewState) -> Void)?
 
@@ -102,12 +103,37 @@ final class CalendarViewModel {
         )
     }
 
+    func toggleCompletion(id: String) {
+        guard lastDTO != nil else { return }
+        guard let workout = workout(id: id) else { return }
+        guard workout.isTappable else { return }
+
+        completionOverrides[id] = !workout.isCompleted
+        publishMappedWeek(phase: state.phase == .initialLoading ? .loaded : state.phase)
+    }
+
+    private func publishMappedWeek(phase: DataPhase) {
+        guard let dto = lastDTO else { return }
+        let weekDays = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
+        state = CalendarViewState(
+            days: mappedDays(from: dto, weekDays: weekDays),
+            phase: phase,
+            errorMessage: nil,
+            showsRetry: false
+        )
+    }
+
+    private func workout(id: String) -> Workout? {
+        state.days.lazy.flatMap(\.workouts).first { $0.id == id }
+    }
+
     private func mappedDays(from dto: WorkoutsResponseDTO, weekDays: [CalendarDay]) -> [CalendarDay] {
         let resolver = WorkoutStatusResolver(today: now(), calendar: calendar)
         return WorkoutMapping.map(
             dto: dto,
             weekDays: weekDays,
-            resolver: resolver
+            resolver: resolver,
+            overrides: completionOverrides
         )
     }
 }

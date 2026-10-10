@@ -50,6 +50,9 @@ final class CalendarViewController: UIViewController {
         errorView.onRetry = { [weak self] in
             self?.viewModel.load()
         }
+        weekView.onWorkoutTap = { [weak self] id in
+            self?.viewModel.toggleCompletion(id: id)
+        }
     }
 
     private func render(_ state: CalendarViewState) {
