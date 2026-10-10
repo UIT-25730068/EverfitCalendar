@@ -83,17 +83,31 @@ API `status == 2` is treated as a completed **seed** (`APIAssignmentCompletion`)
 
 ## AI Collaboration
 
-**Tools:** Cursor (IDE + agent) with the in-editor model for architecture, UIKit layout, concurrency, and tests.
+**Tools:** Cursor (IDE + AI agent), using the in-editor model to support architecture planning, UIKit implementation, concurrency, and testing.
 
-**How AI was used:** scaffolding UIKit views, Codable DTOs, `URLProtocol` tests, and JSON cache actors. Data flow, merge rules, and status resolution were specified first and then implemented, not generated as a black-box app.
+**How AI was used:** AI assisted with UIKit scaffolding, Codable DTOs, URLProtocol-based network tests, and actor-backed JSON caching. I defined the data flow, merge rules, and workout status logic before implementation, then reviewed and validated the generated code rather than treating AI as a black-box app generator.
+
+**One-day development workflow:**
+
+1. *Analyze requirements and plan: Identify mandatory requirements, clarify business rules, and define the MVVM + Repository architecture.*
+
+2. *Build the calendar UI: Implement the Monday–Sunday date calculation, responsive UIKit layout, and workout card states.*
+
+3. *Integrate data and business logic: Add API networking, DTO-to-domain mapping, workout status resolution, and local completion toggling.*
+
+4. *Add persistence and error handling: Implement cache-first loading, local completion overrides, fallback behavior, and retry handling.*
+
+5. *Test, review, and polish: Verify date boundaries, status rules, caching, failure scenarios, and UI behavior; fix issues and prepare the README and demo video.*
 
 **Example prompts (non-trivial):**
 
-1. *“From Everfit_Mobile_Test Guide.pdf, list mandatory vs optional requirements, screens, and a one-day MVVM + Repository plan. Do not write code yet.”*
-2. *“Implement CalendarWeekFactory so the week always starts Monday even when Calendar.firstWeekday is Sunday. Inject date and calendar for tests.”*
-3. *“Add actor-backed JSON caches for the API payload and completion overrides. Cache-first load, never overwrite a valid cache with a failed response, keep overrides across refresh.”*
+1. *“From Everfit_Mobile_Test Guide.pdf, identify mandatory vs. optional requirements, required screens, and a one-day MVVM + Repository implementation plan. Do not write code yet.”*
 
-Complex date math and merge logic is owned and adjusted in-repo (Monday-start formula, override-wins mapping).
+2. *“Implement CalendarWeekFactory so the week always starts on Monday, regardless of Calendar.firstWeekday. Inject the calendar and reference date to make the logic testable.”*
+
+3. *“Implement actor-backed JSON storage for the API payload and local completion overrides. Load cached data first, never replace a valid cache with a failed response, and preserve local overrides across refreshes.”*
+
+Complex date calculations and data-merging behavior were reviewed and refined in the codebase, especially the Monday-start week calculation and the rule that local completion overrides take precedence over API data.
 
 ## Video walkthrough
 
