@@ -113,7 +113,7 @@ Complex date calculations and data-merging behavior were reviewed and refined in
 
 Add your 3–5 minute Loom / Zoom / screen recording here:
 
-**Video:** _paste public link_
+**Video:** https://youtu.be/ayH0lIlNyiw
 
 Walkthrough should cover: why MVVM + Repository, API → cache → ViewModel → UI, local completion overrides, and how AI sped up boilerplate without replacing design decisions.
 
