@@ -7,17 +7,21 @@ import Foundation
 
 struct CalendarWeekFactory {
 
-    /// Returns the seven days of the week containing `date`, Monday through Sunday.
+    /// Builds the device-local week that contains `date`, always Monday…Sunday.
     ///
-    /// `calendar.firstWeekday` is ignored. Date math uses the injected calendar's
-    /// time zone so "today" matches the device's local day.
+    /// Foundation weeks follow `calendar.firstWeekday` (often Sunday). This method
+    /// does **not**. Gregorian `weekday` is 1 = Sunday … 7 = Saturday, so
+    /// `(weekday + 5) % 7` is the number of days to subtract to land on Monday
+    /// (0 when `date` is already Monday; 6 when it is Sunday).
+    /// Time zone comes from `calendar` so “today” matches the device, not UTC.
+    /// Formatters use `en_US_POSIX` so weekday abbreviations stay English (`Mon`).
     func makeCurrentWeek(
         for date: Date = Date(),
         calendar: Calendar = .current
     ) -> [CalendarDay] {
         let today = calendar.startOfDay(for: date)
         let weekday = calendar.component(.weekday, from: today)
-        // Gregorian: 1 = Sunday ... 7 = Saturday. Monday is 2.
+        // Sunday=1 → 6 days back; Monday=2 → 0. Do not use calendar.range(of: .weekOfYear).
         let daysFromMonday = (weekday + 5) % 7
 
         guard let monday = calendar.date(byAdding: .day, value: -daysFromMonday, to: today) else {

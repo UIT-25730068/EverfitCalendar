@@ -6,6 +6,9 @@
 import Foundation
 import os
 
+/// Owns calendar UI state on the main actor. One `loadTask` at a time:
+/// a new `loadWorkouts` / `refreshWorkouts` cancels the previous task so
+/// an older network response cannot overwrite a newer toggle or refresh.
 @MainActor
 final class CalendarViewModel {
 
@@ -46,6 +49,14 @@ final class CalendarViewModel {
         )
     }
 
+    func retry() {
+        loadWorkouts()
+    }
+
+    /// App launch or Retry. If a cache/network payload is already in memory,
+    /// keep cards and enter `.refreshing`. Otherwise stay on date headers
+    /// (`.checkingCache` or `.initialLoading`) and do **not** show bundled fallback
+    /// until the network attempt finishes.
     func loadWorkouts() {
         loadTask?.cancel()
         isUserRefresh = false
@@ -69,6 +80,9 @@ final class CalendarViewModel {
         }
     }
 
+    /// Pull-to-refresh. Always starts a new fetch. Cards stay visible when
+    /// `hasPresentableServerData` is true (local JSON or last network payload).
+    /// Fallback-only data is not “server data”; that path behaves like a cold load.
     func refreshWorkouts() {
         loadTask?.cancel()
         isUserRefresh = true
@@ -99,6 +113,10 @@ final class CalendarViewModel {
         lastDTO != nil && (lastSource == .cache || lastSource == .network)
     }
 
+    /// Cache snapshot first (warm launch), then `refreshWeek()`.
+    /// In-memory toggles win over disk: `snapshot.overrides.merging(completionOverrides) { _, current in current }`.
+    /// If this task was cancelled (newer load started), return without publishing
+    /// so a stale response cannot clobber UI.
     private func performLoad() async {
         let snapshot = await repository.loadCachedSnapshot()
         guard !Task.isCancelled, snapshot.error?.isCancelled != true else { return }
@@ -170,6 +188,10 @@ final class CalendarViewModel {
         )
     }
 
+    /// Immediate local flip by assignment id, then persist on a detached task.
+    /// Ignored when there is no payload or the workout is `.future`.
+    /// Phase stays `.refreshing` if a background fetch is in flight so the
+    /// spinner is not torn down by a tap.
     func toggleCompletion(id: String) {
         guard lastDTO != nil else { return }
         guard let workout = workout(id: id) else { return }

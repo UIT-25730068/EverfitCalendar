@@ -10,6 +10,10 @@ protocol CompletionStoring: Sendable {
     func setOverride(id: String, isCompleted: Bool) async throws
 }
 
+/// Local mark/unmark by assignment `_id` (`completion_overrides.json` in Documents).
+/// Isolated from the payload cache so a network refresh cannot wipe user toggles.
+/// Missing file → empty dictionary. Corrupt file throws; callers treat that as
+/// “no overrides,” not a crash.
 actor CompletionStore: CompletionStoring {
 
     static let fileName = "completion_overrides.json"

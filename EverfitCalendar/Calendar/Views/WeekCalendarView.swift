@@ -60,6 +60,8 @@ final class WeekCalendarView: UIView {
         scrollView.refreshControl = refreshControl
     }
 
+    /// Reconfigures the seven rows inside `performWithoutAnimation` so showing
+    /// or hiding cards does not animate stack arranged-subview height.
     func configure(
         days: [CalendarDay],
         hidesWorkoutStack: Bool,

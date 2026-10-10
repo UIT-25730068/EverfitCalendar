@@ -74,6 +74,9 @@ final class DayRowView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Updates cards without expand/collapse animation. When `hidesWorkoutStack`
+    /// is true, pass an empty list so leftover cards are hidden but the date
+    /// column stays leading-aligned (workoutStack remains in the layout).
     func configure(
         day: CalendarDay,
         hidesWorkoutStack: Bool,
@@ -110,6 +113,9 @@ final class DayRowView: UIView {
         addSubview(workoutStack)
         addSubview(separator)
 
+        // Required min height (88) must win when workoutStack has no cards (intrinsic height 0).
+        // Priority 999 lets the row stay tall and keeps dateHeaderStack top-leading;
+        // hiding workoutStack in a horizontal UIStackView would center the dates.
         let workoutBottom = workoutStack.bottomAnchor.constraint(
             equalTo: separator.topAnchor,
             constant: -CalendarStyle.rowVerticalPadding

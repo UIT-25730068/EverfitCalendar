@@ -15,6 +15,12 @@ enum APIAssignmentCompletion {
 
 enum WorkoutMapping {
 
+    /// Places each API `DayDTO.day` (0 = Monday … 6 = Sunday) onto `weekDays[index]`.
+    /// Out-of-range `day` values are dropped. Missing indexes keep the date header
+    /// with an empty workout list.
+    /// Completion: `overrides[assignment.id]` wins; otherwise `APIAssignmentCompletion`
+    /// (`status == 2` seed). Display status is always resolved from the header date,
+    /// never from the raw API int.
     static func map(
         dto: WorkoutsResponseDTO,
         weekDays: [CalendarDay],

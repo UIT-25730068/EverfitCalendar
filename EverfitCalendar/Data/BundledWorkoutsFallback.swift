@@ -29,6 +29,8 @@ final class BundledWorkoutsFallback: WorkoutsFallbackLoading {
         self.decoder = JSONDecoder()
     }
 
+    /// Sample week shipped in the app bundle. Used only after API **and** disk cache
+    /// fail. Never written to `workouts_cache.json`.
     func loadFallback() throws -> WorkoutsResponseDTO {
         guard let url = bundle.url(forResource: resourceName, withExtension: "json") else {
             throw WorkoutsError.fallbackUnavailable(MissingResourceError(name: "\(resourceName).json"))

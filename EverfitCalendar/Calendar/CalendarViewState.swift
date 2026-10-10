@@ -29,8 +29,8 @@ struct CalendarViewState: Equatable {
         phase == .initialLoading
     }
 
-    /// Hide the workout column only when there is nothing to show (cold start / empty error).
-    /// Cached or already-loaded cards stay visible while a background fetch runs.
+    /// True only when every day has zero workouts (cold start / empty error).
+    /// Presence of cached cards, not `DataPhase`, decides visibility during refresh.
     var hidesWorkoutStack: Bool {
         days.allSatisfy(\.workouts.isEmpty)
     }

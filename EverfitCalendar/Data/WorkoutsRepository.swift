@@ -59,6 +59,13 @@ final class WorkoutsRepository {
         )
     }
 
+    /// Network-first refresh with a strict fallback ladder:
+    /// 1. Success → persist payload, return `.network` (even if the cache write fails,
+    ///    the in-memory DTO is still returned).
+    /// 2. Cancellation → `.none` + `.cancelled`; do not read fallback.
+    /// 3. API failure + valid disk cache → return that cache **with the original API error**.
+    /// 4. API failure + no cache → bundled JSON as `.fallback`, **not** written to disk.
+    /// 5. Fallback also fails → `.none` + `.noDataAvailable`.
     func refreshWeek() async -> WeekLoadResult {
         do {
             try Task.checkCancellation()
@@ -126,6 +133,8 @@ final class WorkoutsRepository {
         }
     }
 
+    /// Reads the payload file. Cancellation is returned as an error; any other
+    /// failure logs and yields `dto: nil` so refresh can still try the network.
     private func loadCacheSafely() async -> (dto: WorkoutsResponseDTO?, error: WorkoutsError?) {
         do {
             try Task.checkCancellation()

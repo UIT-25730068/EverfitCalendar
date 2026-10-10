@@ -104,7 +104,9 @@ final class CalendarViewController: UIViewController {
             self?.render(state)
         }
         errorView.onRetry = { [weak self] in
-            self?.viewModel.loadWorkouts()
+            guard let self else { return }
+            self.setErrorOverlayVisible(false)
+            self.viewModel.retry()
         }
         weekView.onWorkoutTap = { [weak self] id in
             self?.viewModel.toggleCompletion(id: id)
@@ -123,6 +125,7 @@ final class CalendarViewController: UIViewController {
             workoutAlpha: CGFloat(state.workoutContentAlpha)
         )
         errorView.configure(message: state.errorMessage, showsRetry: state.showsRetry)
+        setErrorOverlayVisible(shouldShowErrorOverlay(for: state))
         weekView.accessibilityIdentifier = "weekCalendar"
 
         if state.showsLoadingIndicator {
@@ -146,18 +149,46 @@ final class CalendarViewController: UIViewController {
         }
     }
 
-    private func setupLayout() {
+    private func shouldShowErrorOverlay(for state: CalendarViewState) -> Bool {
+        // Bundled fallback maps sample cards (`.loaded`), so `hidesWorkoutStack` is false.
+        // Treat any user-facing error string as an overlay, including API fail → fallback.
+        switch state.phase {
+        case .failedEmpty:
+            return true
+        case .loaded:
+            return state.showsRetry && state.errorMessage != nil
+        case .checkingCache, .initialLoading, .refreshing:
+            return false
+        }
+    }
+
+    private func setErrorOverlayVisible(_ visible: Bool) {
+        if visible {
+            errorView.isHidden = false
+            view.bringSubviewToFront(errorView)
+            view.bringSubviewToFront(loadingIndicator)
+            errorView.alpha = 1
+            return
+        }
+        errorView.alpha = 0
         errorView.isHidden = true
+    }
+
+    /// Horizontal layout: high-priority leading/trailing pins, plus required
+    /// ≥/≤ to the safe area, plus centerX. On iPad, `maxWidthConstraint` (720)
+    /// becomes active so the pins can break and the stack stays centered.
+    /// On iPhone the max-width constraint is inactive and the pins fill the width.
+    private func setupLayout() {
         titleRow.addArrangedSubview(titleLabel)
         titleRow.addArrangedSubview(backgroundRefreshIndicator)
         contentStack.addArrangedSubview(titleRow)
-        contentStack.addArrangedSubview(errorView)
         contentStack.addArrangedSubview(weekView)
         contentStack.setCustomSpacing(8, after: titleRow)
         weekView.setContentHuggingPriority(.defaultLow, for: .vertical)
         weekView.installRefreshControl(refreshControl)
 
         view.addSubview(contentStack)
+        view.addSubview(errorView)
         view.addSubview(loadingIndicator)
 
         let safe = view.safeAreaLayoutGuide
@@ -191,11 +222,18 @@ final class CalendarViewController: UIViewController {
             trailingConstraint,
             maxWidthConstraint,
 
+            errorView.topAnchor.constraint(equalTo: view.topAnchor),
+            errorView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            errorView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            errorView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
+        setErrorOverlayVisible(false)
     }
 
+    /// Compact: 20pt inset, no width cap. Regular iPad: 40pt inset, width ≤ 720.
     private func applyAdaptiveMetrics() {
         let padding = CalendarStyle.horizontalPadding(for: traitCollection)
         leadingConstraint.constant = padding

@@ -9,9 +9,11 @@ import XCTest
 @MainActor
 final class LoadErrorViewTests: XCTestCase {
 
-    func testHiddenWhenThereIsNoMessage() {
+    func testClearsMessageWhenThereIsNoMessage() {
         let view = LoadErrorView()
+        view.configure(message: "Couldn't load workouts.", showsRetry: true)
         view.configure(message: nil, showsRetry: false)
+        XCTAssertNil(view.accessibilityLabel)
         XCTAssertTrue(view.isHidden)
     }
 
@@ -20,6 +22,8 @@ final class LoadErrorViewTests: XCTestCase {
         var retryCount = 0
         view.onRetry = { retryCount += 1 }
 
+        view.isHidden = false
+        view.alpha = 1
         view.configure(message: "Couldn't load workouts.", showsRetry: true)
 
         XCTAssertFalse(view.isHidden)
@@ -37,6 +41,7 @@ final class LoadErrorViewTests: XCTestCase {
 
     func testHidesRetryWhenRequested() {
         let view = LoadErrorView()
+        view.isHidden = false
         view.configure(message: "Couldn't load workouts.", showsRetry: false)
         XCTAssertFalse(view.isHidden)
         let retry = view.viewWithAccessibilityIdentifier("retryButton")

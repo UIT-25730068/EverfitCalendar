@@ -10,6 +10,10 @@ protocol WorkoutsCaching: Sendable {
     func save(_ dto: WorkoutsResponseDTO) async throws
 }
 
+/// Last **valid** API payload (`workouts_cache.json` in Documents).
+/// Written only after a successful 2xx decode. Corrupt files throw
+/// `cacheCorrupted` and must not be treated as a week. Bundled fallback
+/// is never saved here, so it cannot masquerade as server data on the next launch.
 actor WorkoutsCache: WorkoutsCaching {
 
     static let fileName = "workouts_cache.json"
@@ -28,6 +32,8 @@ actor WorkoutsCache: WorkoutsCaching {
         }
     }
 
+    /// Returns the in-memory copy if present; otherwise reads disk.
+    /// No file → `nil` (cold start). Decode/IO failure → `cacheCorrupted`.
     func load() async throws -> WorkoutsResponseDTO? {
         try Task.checkCancellation()
         if let memory {
@@ -50,6 +56,8 @@ actor WorkoutsCache: WorkoutsCaching {
         }
     }
 
+    /// Atomic replace of the payload file, then updates the in-memory copy.
+    /// A failed write must not leave a half-written JSON file.
     func save(_ dto: WorkoutsResponseDTO) async throws {
         try Task.checkCancellation()
         do {

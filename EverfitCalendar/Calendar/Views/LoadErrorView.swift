@@ -14,7 +14,7 @@ final class LoadErrorView: UIView {
         label.font = CalendarStyle.errorFont
         label.textColor = CalendarStyle.errorTextColor
         label.numberOfLines = 0
-        label.textAlignment = .left
+        label.textAlignment = .center
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         return label
     }()
@@ -43,25 +43,25 @@ final class LoadErrorView: UIView {
         translatesAutoresizingMaskIntoConstraints = false
         insetsLayoutMarginsFromSafeArea = false
         accessibilityIdentifier = "loadErrorView"
-        backgroundColor = CalendarStyle.placeholderFill
-        layer.cornerRadius = CalendarStyle.cardCornerRadius
-        clipsToBounds = true
+        backgroundColor = CalendarStyle.screenBackground
+        isOpaque = true
 
         let stack = UIStackView(arrangedSubviews: [messageLabel, retryButton])
-        stack.axis = .horizontal
+        stack.axis = .vertical
         stack.alignment = .center
-        stack.spacing = 12
+        stack.spacing = 16
         stack.insetsLayoutMarginsFromSafeArea = false
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 12),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -24)
         ])
         isHidden = true
+        alpha = 0
     }
 
     required init?(coder: NSCoder) {
@@ -72,7 +72,6 @@ final class LoadErrorView: UIView {
         messageLabel.text = message
         retryButton.isHidden = !showsRetry
         retryButton.isEnabled = showsRetry
-        isHidden = message == nil
         accessibilityLabel = message
     }
 

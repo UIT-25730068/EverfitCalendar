@@ -11,6 +11,7 @@ enum WorkoutDisplayStatus: Equatable {
     case completed
     case future
 
+    /// Future assignments are display-only; missed / assigned / completed may toggle locally.
     var isTappable: Bool {
         self != .future
     }
