@@ -96,21 +96,22 @@ final class CalendarViewModelTests: XCTestCase {
 
         let cache = InMemoryWorkoutsCache()
         try? await cache.save(cached)
-        let completions = InMemoryCompletionStore()
-
+        let api = GatedAPI()
         let viewModel = CalendarViewModel(
             repository: WorkoutsRepository(
-                api: StubAPI(result: .success(network), delayNanoseconds: 150_000_000),
-                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                api: api,
+                fallback: failingFallback(),
                 cache: cache,
-                completions: completions
+                completions: InMemoryCompletionStore()
             ),
             now: { [today] in today! },
             calendar: calendar
         )
 
         let sawCached = expectation(description: "cached")
+        sawCached.assertForOverFulfill = false
         let sawNetwork = expectation(description: "network")
+        sawNetwork.assertForOverFulfill = false
         viewModel.onChange = { state in
             let title = state.days.flatMap(\.workouts).first(where: { $0.id == "past" })?.title
             if title == "Cached legs", state.phase == .refreshing {
@@ -121,7 +122,87 @@ final class CalendarViewModelTests: XCTestCase {
             }
         }
         viewModel.load()
-        await fulfillment(of: [sawCached, sawNetwork], timeout: 2, enforceOrder: true)
+        await fulfillment(of: [sawCached], timeout: 1)
+        let networkStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(networkStarted)
+        api.resume(.success(network))
+        await fulfillment(of: [sawNetwork], timeout: 1)
+    }
+
+    func testFailedEmptyShowsRetryAndRetryClearsErrorThenLoads() async {
+        let api = GatedAPI()
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: api,
+                fallback: failingFallback(),
+                cache: InMemoryWorkoutsCache(),
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        let failed = expectation(description: "failed")
+        failed.assertForOverFulfill = false
+        viewModel.onChange = { state in
+            if state.phase == .failedEmpty {
+                failed.fulfill()
+            }
+        }
+        viewModel.load()
+        let fetchStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(fetchStarted)
+        api.resume(.failure(WorkoutsError.network(URLError(.notConnectedToInternet))))
+        await fulfillment(of: [failed], timeout: 1)
+
+        XCTAssertEqual(viewModel.state.days.count, 7)
+        XCTAssertEqual(viewModel.state.errorMessage, "Couldn't load workouts.")
+        XCTAssertTrue(viewModel.state.showsRetry)
+        XCTAssertFalse(viewModel.state.showsWorkoutPlaceholders)
+
+        let loading = expectation(description: "retry loading")
+        loading.assertForOverFulfill = false
+        let loaded = expectation(description: "retry loaded")
+        loaded.assertForOverFulfill = false
+        viewModel.onChange = { state in
+            if state.phase == .initialLoading, state.errorMessage == nil {
+                loading.fulfill()
+            }
+            if state.phase == .loaded {
+                loaded.fulfill()
+            }
+        }
+        viewModel.load()
+        await fulfillment(of: [loading], timeout: 1)
+        XCTAssertFalse(viewModel.state.showsRetry)
+        XCTAssertTrue(viewModel.state.showsWorkoutPlaceholders)
+        let retryFetchStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(retryFetchStarted)
+        api.resume(.success(dto))
+        await fulfillment(of: [loaded], timeout: 1)
+        XCTAssertNil(viewModel.state.errorMessage)
+        XCTAssertEqual(workout(viewModel, id: "past")?.title, "Legs day")
+    }
+
+    func testRefreshFailureWithCacheDoesNotShowError() async {
+        let cache = InMemoryWorkoutsCache()
+        try? await cache.save(dto)
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: StubAPI(result: .failure(WorkoutsError.httpStatus(500))),
+                fallback: failingFallback(),
+                cache: cache,
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        await loadAndWait(viewModel)
+        XCTAssertEqual(viewModel.state.phase, .loaded)
+        XCTAssertNil(viewModel.state.errorMessage)
+        XCTAssertFalse(viewModel.state.showsRetry)
+        XCTAssertEqual(workout(viewModel, id: "past")?.title, "Legs day")
     }
 
     func testTogglePersistsOverrideForNextViewModel() async {
@@ -129,7 +210,7 @@ final class CalendarViewModelTests: XCTestCase {
         let completions = InMemoryCompletionStore()
         let repository = WorkoutsRepository(
             api: StubAPI(result: .success(dto)),
-            fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+            fallback: failingFallback(),
             cache: cache,
             completions: completions
         )
@@ -141,15 +222,13 @@ final class CalendarViewModelTests: XCTestCase {
         )
         await loadAndWait(first)
         first.toggleCompletion(id: "past")
-        try? await Task.sleep(nanoseconds: 50_000_000)
-
-        let stored = try? await completions.load()
-        XCTAssertEqual(stored?["past"], true)
+        let persisted = await waitUntil { (try? await completions.load())?["past"] == true }
+        XCTAssertTrue(persisted)
 
         let second = CalendarViewModel(
             repository: WorkoutsRepository(
                 api: StubAPI(result: .success(dto)),
-                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                fallback: failingFallback(),
                 cache: cache,
                 completions: completions
             ),
@@ -164,13 +243,17 @@ final class CalendarViewModelTests: XCTestCase {
         CalendarViewModel(
             repository: WorkoutsRepository(
                 api: StubAPI(result: .success(dto)),
-                fallback: StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none")))),
+                fallback: failingFallback(),
                 cache: InMemoryWorkoutsCache(),
                 completions: InMemoryCompletionStore()
             ),
             now: { [today] in today! },
             calendar: calendar
         )
+    }
+
+    private func failingFallback() -> StubFallback {
+        StubFallback(result: .failure(WorkoutsError.fallbackUnavailable(MissingResourceError(name: "none"))))
     }
 
     private func loadAndWait(_ viewModel: CalendarViewModel) async {

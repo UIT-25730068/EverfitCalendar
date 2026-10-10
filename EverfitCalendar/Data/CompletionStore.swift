@@ -21,7 +21,11 @@ actor CompletionStore: CompletionStoring {
 
     init(directory: URL = WorkoutsCache.documentsDirectory) {
         self.fileURL = directory.appendingPathComponent(Self.fileName)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            // Existing directories succeed; a real failure is surfaced on the next save/load.
+        }
     }
 
     func load() async throws -> [String: Bool] {
@@ -30,7 +34,7 @@ actor CompletionStore: CompletionStoring {
             return memory
         }
 
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        guard FileManager.default.fileExists(atPath: fileURL.path(percentEncoded: false)) else {
             memory = [:]
             return [:]
         }

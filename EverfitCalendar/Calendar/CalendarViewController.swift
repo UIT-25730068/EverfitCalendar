@@ -58,6 +58,7 @@ final class CalendarViewController: UIViewController {
     private func render(_ state: CalendarViewState) {
         weekView.configure(days: state.days, showsPlaceholders: state.showsWorkoutPlaceholders)
         errorView.configure(message: state.errorMessage, showsRetry: state.showsRetry)
+        weekView.accessibilityIdentifier = "weekCalendar"
     }
 
     private func setupLayout() {

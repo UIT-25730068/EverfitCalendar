@@ -48,6 +48,13 @@ final class CalendarViewModel {
         loadTask?.cancel()
         if lastDTO != nil {
             publishMappedWeek(phase: .refreshing)
+        } else if state.phase == .failedEmpty {
+            state = CalendarViewState(
+                days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
+                phase: .initialLoading,
+                errorMessage: nil,
+                showsRetry: false
+            )
         }
         loadTask = Task { [weak self] in
             await self?.performLoad()

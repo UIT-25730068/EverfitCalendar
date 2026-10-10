@@ -43,9 +43,7 @@ enum CalendarStyle {
     static let cardContentInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
     static let cardTitleMetaSpacing: CGFloat = 4
 
-    static var hairlineWidth: CGFloat {
-        1 / UIScreen.main.scale
-    }
+    static let hairlineWidth: CGFloat = 1.0 / 3.0
 
     // MARK: Typography
 

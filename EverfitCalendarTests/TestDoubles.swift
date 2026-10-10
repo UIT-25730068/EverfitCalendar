@@ -8,13 +8,48 @@ import Foundation
 
 struct StubAPI: WorkoutsFetching {
     var result: Result<WorkoutsResponseDTO, Error>
-    var delayNanoseconds: UInt64 = 0
 
     func fetchWorkouts() async throws -> WorkoutsResponseDTO {
-        if delayNanoseconds > 0 {
-            try await Task.sleep(nanoseconds: delayNanoseconds)
+        try result.get()
+    }
+}
+
+/// Parks `fetchWorkouts` until `resume` is called so tests stay deterministic without sleeps.
+final class GatedAPI: WorkoutsFetching, @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<WorkoutsResponseDTO, Error>?
+    private var pending: Result<WorkoutsResponseDTO, Error>?
+
+    var isWaiting: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return continuation != nil
+    }
+
+    func fetchWorkouts() async throws -> WorkoutsResponseDTO {
+        try await withCheckedThrowingContinuation { continuation in
+            lock.lock()
+            if let pending {
+                self.pending = nil
+                lock.unlock()
+                continuation.resume(with: pending)
+            } else {
+                self.continuation = continuation
+                lock.unlock()
+            }
         }
-        return try result.get()
+    }
+
+    func resume(_ result: Result<WorkoutsResponseDTO, Error>) {
+        lock.lock()
+        if let continuation {
+            self.continuation = nil
+            lock.unlock()
+            continuation.resume(with: result)
+        } else {
+            pending = result
+            lock.unlock()
+        }
     }
 }
 
@@ -58,4 +93,12 @@ actor InMemoryCompletionStore: CompletionStoring {
         if let saveError { throw saveError }
         overrides[id] = isCompleted
     }
+}
+
+func waitUntil(_ condition: () async -> Bool, attempts: Int = 1_000) async -> Bool {
+    for _ in 0..<attempts {
+        if await condition() { return true }
+        await Task.yield()
+    }
+    return false
 }
