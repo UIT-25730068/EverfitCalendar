@@ -33,9 +33,9 @@ final class WorkoutCardView: UIView {
 
     private let checkmarkView: UIImageView = {
         let imageView = UIImageView()
-        imageView.image = UIImage(systemName: "checkmark")
+        imageView.image = UIImage(systemName: "checkmark.circle")
         imageView.contentMode = .scaleAspectFit
-        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
+        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         imageView.setContentHuggingPriority(.required, for: .horizontal)
         imageView.setContentCompressionResistancePriority(.required, for: .horizontal)
         return imageView
@@ -123,8 +123,8 @@ final class WorkoutCardView: UIView {
             content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
             content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
             content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
-            checkmarkView.widthAnchor.constraint(equalToConstant: 20),
-            checkmarkView.heightAnchor.constraint(equalToConstant: 20)
+            checkmarkView.widthAnchor.constraint(equalToConstant: 22),
+            checkmarkView.heightAnchor.constraint(equalToConstant: 22)
         ])
         setContentHuggingPriority(.defaultHigh, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)

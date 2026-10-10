@@ -80,12 +80,17 @@ final class DayRowView: UIView {
     }
 
     func configure(day: CalendarDay, showsPlaceholder: Bool, showsSeparator: Bool) {
-        weekdayLabel.text = day.weekdayShort.uppercased()
-        dateLabel.text = day.dayNumber
-
         let accent = day.isToday ? CalendarStyle.todayColor : CalendarStyle.weekdayColor
-        weekdayLabel.textColor = accent
-        dateLabel.textColor = day.isToday ? CalendarStyle.todayColor : CalendarStyle.dateColor
+        weekdayLabel.attributedText = NSAttributedString(
+            string: day.weekdayShort.uppercased(),
+            attributes: [
+                .font: CalendarStyle.weekdayFont,
+                .foregroundColor: accent,
+                .kern: CalendarStyle.weekdayKern
+            ]
+        )
+        dateLabel.text = day.dayNumber
+        dateLabel.textColor = accent
         separator.isHidden = !showsSeparator
 
         rebuildWorkoutArea(workouts: day.workouts, showsPlaceholder: showsPlaceholder)
@@ -125,7 +130,8 @@ final class DayRowView: UIView {
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: CalendarStyle.hairlineWidth),
-            placeholderHeight
+            placeholderHeight,
+            heightAnchor.constraint(greaterThanOrEqualToConstant: CalendarStyle.emptyRowMinHeight)
         ])
 
         setContentHuggingPriority(.defaultHigh, for: .vertical)

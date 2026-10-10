@@ -11,6 +11,7 @@ final class WeekCalendarView: UIView {
         let scrollView = UIScrollView()
         scrollView.alwaysBounceVertical = true
         scrollView.showsHorizontalScrollIndicator = false
+        scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: CalendarStyle.screenBottomPadding, right: 0)
         scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.insetsLayoutMarginsFromSafeArea = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false

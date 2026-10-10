@@ -13,12 +13,30 @@ final class CalendarViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "training"
-        label.font = CalendarStyle.titleFont
-        label.textColor = CalendarStyle.titleColor
+        label.attributedText = NSAttributedString(
+            string: "training",
+            attributes: [
+                .font: CalendarStyle.titleFont,
+                .foregroundColor: CalendarStyle.titleColor,
+                .kern: 0.2
+            ]
+        )
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
+
+    private let contentStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = CalendarStyle.titleToGridSpacing
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private var leadingConstraint: NSLayoutConstraint!
+    private var trailingConstraint: NSLayoutConstraint!
+    private var maxWidthConstraint: NSLayoutConstraint!
 
     init(viewModel: CalendarViewModel) {
         self.viewModel = viewModel
@@ -34,9 +52,15 @@ final class CalendarViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = CalendarStyle.screenBackground
         setupLayout()
+        applyAdaptiveMetrics()
         bindViewModel()
         render(viewModel.state)
         viewModel.load()
+    }
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        applyAdaptiveMetrics()
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -63,22 +87,51 @@ final class CalendarViewController: UIViewController {
 
     private func setupLayout() {
         errorView.isHidden = true
-
-        let stack = UIStackView(arrangedSubviews: [titleLabel, errorView, weekView])
-        stack.axis = .vertical
-        stack.alignment = .fill
-        stack.spacing = CalendarStyle.titleToGridSpacing
-        stack.setCustomSpacing(8, after: titleLabel)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        view.addSubview(stack)
+        contentStack.addArrangedSubview(titleLabel)
+        contentStack.addArrangedSubview(errorView)
+        contentStack.addArrangedSubview(weekView)
+        contentStack.setCustomSpacing(8, after: titleLabel)
         weekView.setContentHuggingPriority(.defaultLow, for: .vertical)
 
+        view.addSubview(contentStack)
+
+        let safe = view.safeAreaLayoutGuide
+        leadingConstraint = contentStack.leadingAnchor.constraint(
+            equalTo: safe.leadingAnchor,
+            constant: CalendarStyle.compactHorizontalPadding
+        )
+        leadingConstraint.priority = .defaultHigh
+        trailingConstraint = contentStack.trailingAnchor.constraint(
+            equalTo: safe.trailingAnchor,
+            constant: -CalendarStyle.compactHorizontalPadding
+        )
+        trailingConstraint.priority = .defaultHigh
+        maxWidthConstraint = contentStack.widthAnchor.constraint(
+            lessThanOrEqualToConstant: CalendarStyle.regularMaxContentWidth
+        )
+
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: CalendarStyle.screenTopPadding),
-            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: CalendarStyle.screenHorizontalPadding),
-            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -CalendarStyle.screenHorizontalPadding),
-            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            contentStack.topAnchor.constraint(equalTo: safe.topAnchor, constant: CalendarStyle.screenTopPadding),
+            contentStack.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+            contentStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            contentStack.leadingAnchor.constraint(
+                greaterThanOrEqualTo: safe.leadingAnchor,
+                constant: CalendarStyle.compactHorizontalPadding
+            ),
+            contentStack.trailingAnchor.constraint(
+                lessThanOrEqualTo: safe.trailingAnchor,
+                constant: -CalendarStyle.compactHorizontalPadding
+            ),
+            leadingConstraint,
+            trailingConstraint,
+            maxWidthConstraint
         ])
+    }
+
+    private func applyAdaptiveMetrics() {
+        let padding = CalendarStyle.horizontalPadding(for: traitCollection)
+        leadingConstraint.constant = padding
+        trailingConstraint.constant = -padding
+        maxWidthConstraint.isActive = traitCollection.userInterfaceIdiom == .pad
     }
 }
