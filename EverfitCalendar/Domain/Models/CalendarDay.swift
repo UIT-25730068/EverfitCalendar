@@ -12,4 +12,5 @@ struct CalendarDay: Equatable {
     /// Short weekday name, e.g. `"Mon"`.
     let weekdayShort: String
     let isToday: Bool
+    var workouts: [Workout] = []
 }

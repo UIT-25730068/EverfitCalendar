@@ -69,7 +69,7 @@ final class DayRowView: UIView {
         dateLabel.textColor = day.isToday ? CalendarStyle.todayColor : CalendarStyle.dateColor
         separator.isHidden = !showsSeparator
 
-        rebuildWorkoutArea(showsPlaceholder: showsPlaceholder)
+        rebuildWorkoutArea(workouts: day.workouts, showsPlaceholder: showsPlaceholder)
     }
 
     private func setupLayout() {
@@ -103,19 +103,26 @@ final class DayRowView: UIView {
         setContentCompressionResistancePriority(.required, for: .vertical)
     }
 
-    private func rebuildWorkoutArea(showsPlaceholder: Bool) {
+    private func rebuildWorkoutArea(workouts: [Workout], showsPlaceholder: Bool) {
         workoutStack.arrangedSubviews.forEach { view in
             workoutStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
 
-        guard showsPlaceholder else { return }
+        if showsPlaceholder {
+            let placeholder = UIView()
+            placeholder.backgroundColor = CalendarStyle.placeholderFill
+            placeholder.layer.cornerRadius = CalendarStyle.placeholderCornerRadius
+            placeholder.translatesAutoresizingMaskIntoConstraints = false
+            placeholder.heightAnchor.constraint(equalToConstant: CalendarStyle.placeholderHeight).isActive = true
+            workoutStack.addArrangedSubview(placeholder)
+            return
+        }
 
-        let placeholder = UIView()
-        placeholder.backgroundColor = CalendarStyle.placeholderFill
-        placeholder.layer.cornerRadius = CalendarStyle.placeholderCornerRadius
-        placeholder.translatesAutoresizingMaskIntoConstraints = false
-        placeholder.heightAnchor.constraint(equalToConstant: CalendarStyle.placeholderHeight).isActive = true
-        workoutStack.addArrangedSubview(placeholder)
+        workouts.forEach { workout in
+            let card = WorkoutCardView()
+            card.configure(workout)
+            workoutStack.addArrangedSubview(card)
+        }
     }
 }

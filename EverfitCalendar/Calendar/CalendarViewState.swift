@@ -19,6 +19,8 @@ enum DataPhase: Equatable {
 struct CalendarViewState: Equatable {
     var days: [CalendarDay]
     var phase: DataPhase
+    var errorMessage: String?
+    var showsRetry: Bool
 
     var showsWorkoutPlaceholders: Bool {
         phase == .initialLoading

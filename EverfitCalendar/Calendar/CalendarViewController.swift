@@ -9,6 +9,7 @@ final class CalendarViewController: UIViewController {
 
     private let viewModel: CalendarViewModel
     private let weekView = WeekCalendarView()
+    private let errorView = LoadErrorView()
 
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -35,6 +36,7 @@ final class CalendarViewController: UIViewController {
         setupLayout()
         bindViewModel()
         render(viewModel.state)
+        viewModel.load()
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
@@ -45,25 +47,34 @@ final class CalendarViewController: UIViewController {
         viewModel.onChange = { [weak self] state in
             self?.render(state)
         }
+        errorView.onRetry = { [weak self] in
+            self?.viewModel.load()
+        }
     }
 
     private func render(_ state: CalendarViewState) {
         weekView.configure(days: state.days, showsPlaceholders: state.showsWorkoutPlaceholders)
+        errorView.configure(message: state.errorMessage, showsRetry: state.showsRetry)
     }
 
     private func setupLayout() {
-        view.addSubview(titleLabel)
-        view.addSubview(weekView)
+        errorView.isHidden = true
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, errorView, weekView])
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = CalendarStyle.titleToGridSpacing
+        stack.setCustomSpacing(8, after: titleLabel)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(stack)
+        weekView.setContentHuggingPriority(.defaultLow, for: .vertical)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: CalendarStyle.screenTopPadding),
-            titleLabel.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: CalendarStyle.screenHorizontalPadding),
-            titleLabel.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -CalendarStyle.screenHorizontalPadding),
-
-            weekView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: CalendarStyle.titleToGridSpacing),
-            weekView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: CalendarStyle.screenHorizontalPadding),
-            weekView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -CalendarStyle.screenHorizontalPadding),
-            weekView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: CalendarStyle.screenTopPadding),
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: CalendarStyle.screenHorizontalPadding),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -CalendarStyle.screenHorizontalPadding),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
         ])
     }
 }
