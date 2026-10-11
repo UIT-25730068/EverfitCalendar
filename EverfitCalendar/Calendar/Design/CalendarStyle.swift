@@ -40,8 +40,6 @@ enum CalendarStyle {
     static let regularHorizontalPadding: CGFloat = 40
     static let regularMaxContentWidth: CGFloat = 720
 
-    static let placeholderHeight: CGFloat = 72
-    static let placeholderCornerRadius: CGFloat = 16
     static let cardCornerRadius: CGFloat = 8
     static let cardContentInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
     static let cardTitleMetaSpacing: CGFloat = 4

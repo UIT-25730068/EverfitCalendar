@@ -46,10 +46,6 @@ final class CalendarViewModel {
         )
     }
 
-    func load() {
-        loadWorkouts()
-    }
-
     func loadWorkouts() {
         loadTask?.cancel()
         isUserRefresh = false

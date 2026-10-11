@@ -15,9 +15,6 @@ struct CalendarWeekFactory {
         for date: Date = Date(),
         calendar: Calendar = .current
     ) -> [CalendarDay] {
-        var calendar = calendar
-        calendar.firstWeekday = 2
-
         let today = calendar.startOfDay(for: date)
         let weekday = calendar.component(.weekday, from: today)
         // Gregorian: 1 = Sunday ... 7 = Saturday. Monday is 2.
