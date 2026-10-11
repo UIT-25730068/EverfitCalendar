@@ -48,7 +48,7 @@ Two files in the app Documents directory:
 | `workouts_cache.json` | Last **valid** API payload |
 | `completion_overrides.json` | Local completion by assignment `_id` |
 
-Warm launch: read cache + overrides first (`refreshing` with cards), then fetch. A successful 2xx decode **replaces** the payload cache. Overrides are **not** wiped on refresh. Invalid HTTP / decode failures never overwrite a good payload file. Bundled `workouts_fallback.json` is last-resort in-memory data only (not written as a server cache).
+Warm launch: read cache + overrides first and **show those cards immediately**, then fetch updates in the background. `workoutStack` is hidden only when there is no local payload (empty date rows, like `Empty_Training.png`). If cache exists, cards stay visible during refresh and after mark/unmark. A successful 2xx decode **replaces** the payload cache. Overrides are **not** wiped on refresh. Invalid HTTP / decode failures never overwrite a good payload file. Bundled `workouts_fallback.json` is last-resort in-memory data only (not written as a server cache).
 
 ## Error handling
 
@@ -56,8 +56,8 @@ Typed `WorkoutsError` preserves underlying `URLError` / `DecodingError` for logs
 
 | Situation | UI |
 |---|---|
-| First load in flight, no cache | Dates visible, workout placeholders |
-| Cache hit, refresh in flight | Cached cards, no skeleton |
+| First load in flight, no cache | Dates only (`workoutStack` hidden) + spinner |
+| Cache hit, refresh in flight | Cached cards stay visible |
 | Network fail + valid cache | Keep cache, no banner |
 | No cache, API and fallback fail | Seven date rows + “Couldn't load workouts.” + **Retry** |
 | Cancellation | Previous state unchanged |

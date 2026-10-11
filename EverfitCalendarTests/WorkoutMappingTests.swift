@@ -114,4 +114,24 @@ final class WorkoutDisplayStatusTests: XCTestCase {
         XCTAssertEqual(WorkoutDisplayStatus.completed.metaText(exerciseCount: 6), "Completed")
         XCTAssertEqual(WorkoutDisplayStatus.future.metaText(exerciseCount: 6), "6 exercises")
     }
+
+    func testMissedMetaColorsOnlyTheStatusWord() {
+        let attributed = WorkoutMetaFormatting.attributedText(
+            status: .missed,
+            exerciseCount: 9,
+            font: UIFont.openSansRegular(ofSize: 13)
+        )
+        XCTAssertEqual(attributed.string, "Missed • 9 exercises")
+
+        let missedRange = NSRange(location: 0, length: WorkoutMetaFormatting.missedPrefix.count)
+        let remainderStart = missedRange.length
+        XCTAssertEqual(
+            attributed.attribute(.foregroundColor, at: missedRange.location, effectiveRange: nil) as? UIColor,
+            CalendarStyle.missedTextColor
+        )
+        XCTAssertEqual(
+            attributed.attribute(.foregroundColor, at: remainderStart, effectiveRange: nil) as? UIColor,
+            CalendarStyle.assignedMetaColor
+        )
+    }
 }

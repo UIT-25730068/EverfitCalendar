@@ -17,7 +17,9 @@ final class CalendarViewModel {
 
     private var loadTask: Task<Void, Never>?
     private var lastDTO: WorkoutsResponseDTO?
+    private var lastSource: WorkoutDataSource = .none
     private var completionOverrides: [String: Bool] = [:]
+    private var isUserRefresh = false
 
     var onChange: ((CalendarViewState) -> Void)?
 
@@ -35,30 +37,70 @@ final class CalendarViewModel {
         self.weekFactory = weekFactory
         self.now = now
         self.calendar = calendar
-        let days = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
         state = CalendarViewState(
-            days: days,
-            phase: .initialLoading,
+            days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
+            phase: .checkingCache,
             errorMessage: nil,
-            showsRetry: false
+            showsRetry: false,
+            isUserRefresh: false
         )
     }
 
     func load() {
+        loadWorkouts()
+    }
+
+    func loadWorkouts() {
         loadTask?.cancel()
-        if lastDTO != nil {
+        isUserRefresh = false
+
+        if hasPresentableServerData {
             publishMappedWeek(phase: .refreshing)
-        } else if state.phase == .failedEmpty {
+        } else if state.phase != .checkingCache {
+            lastDTO = nil
+            lastSource = .none
             state = CalendarViewState(
                 days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
                 phase: .initialLoading,
                 errorMessage: nil,
-                showsRetry: false
+                showsRetry: false,
+                isUserRefresh: false
             )
         }
+
         loadTask = Task { [weak self] in
             await self?.performLoad()
         }
+    }
+
+    func refreshWorkouts() {
+        loadTask?.cancel()
+        isUserRefresh = true
+
+        if hasPresentableServerData {
+            publishMappedWeek(phase: .refreshing)
+        } else if state.phase != .checkingCache {
+            lastDTO = nil
+            lastSource = .none
+            state = CalendarViewState(
+                days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
+                phase: .initialLoading,
+                errorMessage: nil,
+                showsRetry: false,
+                isUserRefresh: true
+            )
+        }
+
+        loadTask = Task { [weak self] in
+            await self?.performLoad()
+        }
+    }
+
+    /// Whether a cache or network payload is on hand for mapping.
+    /// Local mark/unmark only writes `completionOverrides` and must not clear this,
+    /// otherwise pull-to-refresh would skip a normal refresh and look like a cold start.
+    private var hasPresentableServerData: Bool {
+        lastDTO != nil && (lastSource == .cache || lastSource == .network)
     }
 
     private func performLoad() async {
@@ -69,13 +111,15 @@ final class CalendarViewModel {
 
         if let dto = snapshot.dto {
             lastDTO = dto
+            lastSource = .cache
             publishMappedWeek(phase: .refreshing)
         } else if lastDTO == nil {
             state = CalendarViewState(
                 days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
                 phase: .initialLoading,
                 errorMessage: nil,
-                showsRetry: false
+                showsRetry: false,
+                isUserRefresh: false
             )
         }
 
@@ -89,27 +133,44 @@ final class CalendarViewModel {
             return
         }
 
+        applyNetworkResult(result)
+    }
+
+    private func applyNetworkResult(_ result: WeekLoadResult) {
         if let dto = result.dto {
             lastDTO = dto
-            if let error = result.error {
-                logger.error("Showing data from \(String(describing: result.source), privacy: .public) after \(error.localizedDescription, privacy: .public)")
+            lastSource = result.source
+
+            switch result.source {
+            case .fallback:
+                logger.error("Network failed; showing bundled fallback: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
+                publishMappedWeek(
+                    phase: .loaded,
+                    errorMessage: "Couldn't reach the server. Showing sample workouts.",
+                    showsRetry: true
+                )
+            case .cache:
+                if result.error != nil {
+                    logger.error("Refresh failed; keeping cached week: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
+                }
+                publishMappedWeek(phase: .loaded)
+            case .network:
+                publishMappedWeek(phase: .loaded)
+            case .none:
+                break
             }
-            publishMappedWeek(phase: .loaded)
             return
         }
 
-        if lastDTO != nil {
-            logger.error("Refresh failed; keeping cached week: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
-            publishMappedWeek(phase: .loaded)
-            return
-        }
-
+        lastDTO = nil
+        lastSource = .none
         logger.error("No workouts available: \(result.error?.localizedDescription ?? "unknown", privacy: .public)")
         state = CalendarViewState(
             days: weekFactory.makeCurrentWeek(for: now(), calendar: calendar),
             phase: .failedEmpty,
             errorMessage: "Couldn't load workouts.",
-            showsRetry: true
+            showsRetry: true,
+            isUserRefresh: false
         )
     }
 
@@ -120,21 +181,28 @@ final class CalendarViewModel {
 
         let updated = !workout.isCompleted
         completionOverrides[id] = updated
-        publishMappedWeek(phase: state.phase == .initialLoading ? .loaded : state.phase)
+        publishMappedWeek(
+            phase: state.phase == .refreshing ? .refreshing : .loaded
+        )
 
         Task { [weak self] in
             await self?.repository.setOverride(id: id, isCompleted: updated)
         }
     }
 
-    private func publishMappedWeek(phase: DataPhase) {
+    private func publishMappedWeek(
+        phase: DataPhase,
+        errorMessage: String? = nil,
+        showsRetry: Bool = false
+    ) {
         guard let dto = lastDTO else { return }
         let weekDays = weekFactory.makeCurrentWeek(for: now(), calendar: calendar)
         state = CalendarViewState(
             days: mappedDays(from: dto, weekDays: weekDays),
             phase: phase,
-            errorMessage: nil,
-            showsRetry: false
+            errorMessage: errorMessage,
+            showsRetry: showsRetry,
+            isUserRefresh: phase == .refreshing && isUserRefresh
         )
     }
 

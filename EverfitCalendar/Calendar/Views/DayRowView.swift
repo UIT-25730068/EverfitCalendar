@@ -34,7 +34,8 @@ final class DayRowView: UIView {
         stack.spacing = CalendarStyle.weekdayToDateSpacing
         stack.setContentHuggingPriority(.required, for: .horizontal)
         stack.setContentCompressionResistancePriority(.required, for: .horizontal)
-        stack.setContentHuggingPriority(.defaultHigh, for: .vertical)
+        stack.setContentHuggingPriority(.required, for: .vertical)
+        stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
     }()
 
@@ -46,15 +47,9 @@ final class DayRowView: UIView {
         stack.distribution = .fill
         stack.setContentHuggingPriority(.defaultLow, for: .horizontal)
         stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        stack.setContentHuggingPriority(.defaultLow, for: .vertical)
+        stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
-    }()
-
-    private let placeholderView: UIView = {
-        let view = UIView()
-        view.backgroundColor = CalendarStyle.placeholderFill
-        view.layer.cornerRadius = CalendarStyle.placeholderCornerRadius
-        view.translatesAutoresizingMaskIntoConstraints = false
-        return view
     }()
 
     private let separator: UIView = {
@@ -79,7 +74,11 @@ final class DayRowView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(day: CalendarDay, showsPlaceholder: Bool, showsSeparator: Bool) {
+    func configure(
+        day: CalendarDay,
+        hidesWorkoutStack: Bool,
+        workoutAlpha: CGFloat
+    ) {
         let accent = day.isToday ? CalendarStyle.todayColor : CalendarStyle.weekdayColor
         weekdayLabel.attributedText = NSAttributedString(
             string: day.weekdayShort.uppercased(),
@@ -90,47 +89,54 @@ final class DayRowView: UIView {
             ]
         )
         dateLabel.text = day.dayNumber
-        dateLabel.textColor = accent
-        separator.isHidden = !showsSeparator
+        dateLabel.textColor = day.isToday ? CalendarStyle.todayColor : CalendarStyle.dateColor
+        separator.isHidden = false
 
-        rebuildWorkoutArea(workouts: day.workouts, showsPlaceholder: showsPlaceholder)
+        UIView.performWithoutAnimation {
+            rebuildWorkoutArea(
+                workouts: hidesWorkoutStack ? [] : day.workouts
+            )
+            workoutStack.alpha = hidesWorkoutStack ? 0 : workoutAlpha
+            workoutStack.isUserInteractionEnabled = !hidesWorkoutStack
+            layoutIfNeeded()
+        }
     }
 
     private func setupLayout() {
         dateHeaderStack.addArrangedSubview(weekdayLabel)
         dateHeaderStack.addArrangedSubview(dateLabel)
-        workoutStack.addArrangedSubview(placeholderView)
-        placeholderView.isHidden = true
 
-        let contentStack = UIStackView(arrangedSubviews: [dateHeaderStack, workoutStack])
-        contentStack.axis = .horizontal
-        contentStack.alignment = .top
-        contentStack.distribution = .fill
-        contentStack.spacing = CalendarStyle.dateWorkoutSpacing
-        contentStack.insetsLayoutMarginsFromSafeArea = false
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-
-        addSubview(contentStack)
+        addSubview(dateHeaderStack)
+        addSubview(workoutStack)
         addSubview(separator)
 
-        let placeholderHeight = placeholderView.heightAnchor.constraint(
-            equalToConstant: CalendarStyle.placeholderHeight
+        let workoutBottom = workoutStack.bottomAnchor.constraint(
+            equalTo: separator.topAnchor,
+            constant: -CalendarStyle.rowVerticalPadding
         )
-        placeholderHeight.priority = UILayoutPriority(999)
+        workoutBottom.priority = UILayoutPriority(999)
 
         NSLayoutConstraint.activate([
+            dateHeaderStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            dateHeaderStack.topAnchor.constraint(equalTo: topAnchor, constant: CalendarStyle.rowVerticalPadding),
             dateHeaderStack.widthAnchor.constraint(equalToConstant: CalendarStyle.dateHeaderWidth),
+            dateHeaderStack.bottomAnchor.constraint(
+                lessThanOrEqualTo: separator.topAnchor,
+                constant: -CalendarStyle.rowVerticalPadding
+            ),
 
-            contentStack.topAnchor.constraint(equalTo: topAnchor, constant: CalendarStyle.rowVerticalPadding),
-            contentStack.leadingAnchor.constraint(equalTo: leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: separator.topAnchor, constant: -CalendarStyle.rowVerticalPadding),
+            workoutStack.leadingAnchor.constraint(
+                equalTo: dateHeaderStack.trailingAnchor,
+                constant: CalendarStyle.dateWorkoutSpacing
+            ),
+            workoutStack.topAnchor.constraint(equalTo: topAnchor, constant: CalendarStyle.rowVerticalPadding),
+            workoutStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            workoutBottom,
 
             separator.leadingAnchor.constraint(equalTo: leadingAnchor),
             separator.trailingAnchor.constraint(equalTo: trailingAnchor),
             separator.bottomAnchor.constraint(equalTo: bottomAnchor),
             separator.heightAnchor.constraint(equalToConstant: CalendarStyle.hairlineWidth),
-            placeholderHeight,
             heightAnchor.constraint(greaterThanOrEqualToConstant: CalendarStyle.emptyRowMinHeight)
         ])
 
@@ -138,14 +144,7 @@ final class DayRowView: UIView {
         setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
     }
 
-    private func rebuildWorkoutArea(workouts: [Workout], showsPlaceholder: Bool) {
-        placeholderView.isHidden = !showsPlaceholder
-
-        if showsPlaceholder {
-            cardViews.forEach { $0.isHidden = true }
-            return
-        }
-
+    private func rebuildWorkoutArea(workouts: [Workout]) {
         while cardViews.count < workouts.count {
             let card = WorkoutCardView()
             card.onTap = { [weak self] id in

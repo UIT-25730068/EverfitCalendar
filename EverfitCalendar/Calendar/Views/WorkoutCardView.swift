@@ -31,13 +31,25 @@ final class WorkoutCardView: UIView {
         return label
     }()
 
+    private let checkmarkBadge: UIView = {
+        let badge = UIView()
+        badge.backgroundColor = .white
+        badge.layer.cornerRadius = 12
+        badge.clipsToBounds = true
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        badge.setContentHuggingPriority(.required, for: .horizontal)
+        badge.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return badge
+    }()
+
     private let checkmarkView: UIImageView = {
         let imageView = UIImageView()
-        imageView.image = UIImage(systemName: "checkmark.circle")
+        let config = UIImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+        imageView.image = UIImage(systemName: "checkmark", withConfiguration: config)
+        imageView.preferredSymbolConfiguration = config
+        imageView.tintColor = CalendarStyle.completedCardBackground
         imageView.contentMode = .scaleAspectFit
-        imageView.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-        imageView.setContentHuggingPriority(.required, for: .horizontal)
-        imageView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
         return imageView
     }()
 
@@ -65,8 +77,7 @@ final class WorkoutCardView: UIView {
         accessibilityLabel = workout.title
         accessibilityHint = workout.isTappable ? "Marks the workout complete or incomplete" : nil
         titleLabel.text = workout.title
-        metaLabel.text = workout.displayStatus.metaText(exerciseCount: workout.exerciseCount)
-        applyStyle(for: workout.displayStatus)
+        applyStyle(for: workout.displayStatus, exerciseCount: workout.exerciseCount)
         setNeedsLayout()
     }
 
@@ -75,28 +86,29 @@ final class WorkoutCardView: UIView {
         onTap?(workoutID)
     }
 
-    private func applyStyle(for status: WorkoutDisplayStatus) {
+    private func applyStyle(for status: WorkoutDisplayStatus, exerciseCount: Int) {
         let showCheckmark = status == .completed
-        checkmarkView.isHidden = !showCheckmark
+        checkmarkBadge.isHidden = !showCheckmark
+        metaLabel.attributedText = WorkoutMetaFormatting.attributedText(
+            status: status,
+            exerciseCount: exerciseCount,
+            font: CalendarStyle.cardMetaFont
+        )
 
         switch status {
         case .missed:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.dateColor
-            metaLabel.textColor = CalendarStyle.missedTextColor
         case .assigned:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.dateColor
-            metaLabel.textColor = CalendarStyle.assignedMetaColor
         case .completed:
             backgroundColor = CalendarStyle.completedCardBackground
             titleLabel.textColor = CalendarStyle.completedTextColor
-            metaLabel.textColor = CalendarStyle.completedTextColor.withAlphaComponent(0.9)
-            checkmarkView.tintColor = CalendarStyle.completedTextColor
+            checkmarkView.tintColor = CalendarStyle.completedCardBackground
         case .future:
             backgroundColor = CalendarStyle.cardBackground
             titleLabel.textColor = CalendarStyle.futureTextColor
-            metaLabel.textColor = CalendarStyle.futureTextColor
         }
     }
 
@@ -108,7 +120,9 @@ final class WorkoutCardView: UIView {
         textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
         textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let content = UIStackView(arrangedSubviews: [textStack, checkmarkView])
+        checkmarkBadge.addSubview(checkmarkView)
+
+        let content = UIStackView(arrangedSubviews: [textStack, checkmarkBadge])
         content.axis = .horizontal
         content.alignment = .center
         content.spacing = 8
@@ -123,8 +137,12 @@ final class WorkoutCardView: UIView {
             content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: insets.left),
             content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -insets.right),
             content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -insets.bottom),
-            checkmarkView.widthAnchor.constraint(equalToConstant: 22),
-            checkmarkView.heightAnchor.constraint(equalToConstant: 22)
+            checkmarkBadge.widthAnchor.constraint(equalToConstant: 24),
+            checkmarkBadge.heightAnchor.constraint(equalToConstant: 24),
+            checkmarkView.centerXAnchor.constraint(equalTo: checkmarkBadge.centerXAnchor),
+            checkmarkView.centerYAnchor.constraint(equalTo: checkmarkBadge.centerYAnchor),
+            checkmarkView.widthAnchor.constraint(equalToConstant: 13),
+            checkmarkView.heightAnchor.constraint(equalToConstant: 13)
         ])
         setContentHuggingPriority(.defaultHigh, for: .vertical)
         setContentCompressionResistancePriority(.required, for: .vertical)

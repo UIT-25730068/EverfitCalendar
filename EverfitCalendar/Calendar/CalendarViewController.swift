@@ -21,8 +21,24 @@ final class CalendarViewController: UIViewController {
                 .kern: 0.2
             ]
         )
-        label.translatesAutoresizingMaskIntoConstraints = false
+        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
         return label
+    }()
+
+    private let backgroundRefreshIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.color = CalendarStyle.todayColor
+        indicator.hidesWhenStopped = true
+        indicator.setContentHuggingPriority(.required, for: .horizontal)
+        return indicator
+    }()
+
+    private let titleRow: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.spacing = 8
+        return stack
     }()
 
     private let contentStack: UIStackView = {
@@ -32,6 +48,22 @@ final class CalendarViewController: UIViewController {
         stack.spacing = CalendarStyle.titleToGridSpacing
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
+    }()
+
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .large)
+        indicator.color = CalendarStyle.todayColor
+        indicator.hidesWhenStopped = true
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        indicator.accessibilityIdentifier = "loadingIndicator"
+        return indicator
+    }()
+
+    private let refreshControl: UIRefreshControl = {
+        let control = UIRefreshControl()
+        control.tintColor = CalendarStyle.todayColor
+        control.accessibilityIdentifier = "refreshControl"
+        return control
     }()
 
     private var leadingConstraint: NSLayoutConstraint!
@@ -55,7 +87,7 @@ final class CalendarViewController: UIViewController {
         applyAdaptiveMetrics()
         bindViewModel()
         render(viewModel.state)
-        viewModel.load()
+        viewModel.loadWorkouts()
     }
 
     override func viewWillLayoutSubviews() {
@@ -72,28 +104,61 @@ final class CalendarViewController: UIViewController {
             self?.render(state)
         }
         errorView.onRetry = { [weak self] in
-            self?.viewModel.load()
+            self?.viewModel.loadWorkouts()
         }
         weekView.onWorkoutTap = { [weak self] id in
             self?.viewModel.toggleCompletion(id: id)
         }
+        refreshControl.addTarget(self, action: #selector(didPullToRefresh), for: .valueChanged)
+    }
+
+    @objc private func didPullToRefresh() {
+        viewModel.refreshWorkouts()
     }
 
     private func render(_ state: CalendarViewState) {
-        weekView.configure(days: state.days, showsPlaceholders: state.showsWorkoutPlaceholders)
+        weekView.configure(
+            days: state.days,
+            hidesWorkoutStack: state.hidesWorkoutStack,
+            workoutAlpha: CGFloat(state.workoutContentAlpha)
+        )
         errorView.configure(message: state.errorMessage, showsRetry: state.showsRetry)
         weekView.accessibilityIdentifier = "weekCalendar"
+
+        if state.showsLoadingIndicator {
+            if !loadingIndicator.isAnimating {
+                loadingIndicator.startAnimating()
+            }
+        } else {
+            loadingIndicator.stopAnimating()
+        }
+
+        if state.showsBackgroundRefreshIndicator {
+            if !backgroundRefreshIndicator.isAnimating {
+                backgroundRefreshIndicator.startAnimating()
+            }
+        } else {
+            backgroundRefreshIndicator.stopAnimating()
+        }
+
+        if state.phase != .refreshing, refreshControl.isRefreshing {
+            refreshControl.endRefreshing()
+        }
     }
 
     private func setupLayout() {
         errorView.isHidden = true
-        contentStack.addArrangedSubview(titleLabel)
+        titleRow.addArrangedSubview(titleLabel)
+        titleRow.addArrangedSubview(backgroundRefreshIndicator)
+        contentStack.addArrangedSubview(titleRow)
         contentStack.addArrangedSubview(errorView)
         contentStack.addArrangedSubview(weekView)
-        contentStack.setCustomSpacing(8, after: titleLabel)
+        contentStack.setCustomSpacing(8, after: titleRow)
         weekView.setContentHuggingPriority(.defaultLow, for: .vertical)
+        weekView.installRefreshControl(refreshControl)
 
         view.addSubview(contentStack)
+        view.addSubview(loadingIndicator)
 
         let safe = view.safeAreaLayoutGuide
         leadingConstraint = contentStack.leadingAnchor.constraint(
@@ -124,7 +189,10 @@ final class CalendarViewController: UIViewController {
             ),
             leadingConstraint,
             trailingConstraint,
-            maxWidthConstraint
+            maxWidthConstraint,
+
+            loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
 

@@ -121,8 +121,9 @@ final class CalendarViewModelTests: XCTestCase {
                 sawNetwork.fulfill()
             }
         }
-        viewModel.load()
+        viewModel.loadWorkouts()
         await fulfillment(of: [sawCached], timeout: 1)
+        XCTAssertFalse(viewModel.state.hidesWorkoutStack)
         let networkStarted = await waitUntil { api.isWaiting }
         XCTAssertTrue(networkStarted)
         api.resume(.success(network))
@@ -149,7 +150,7 @@ final class CalendarViewModelTests: XCTestCase {
                 failed.fulfill()
             }
         }
-        viewModel.load()
+        viewModel.loadWorkouts()
         let fetchStarted = await waitUntil { api.isWaiting }
         XCTAssertTrue(fetchStarted)
         api.resume(.failure(WorkoutsError.network(URLError(.notConnectedToInternet))))
@@ -158,7 +159,8 @@ final class CalendarViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state.days.count, 7)
         XCTAssertEqual(viewModel.state.errorMessage, "Couldn't load workouts.")
         XCTAssertTrue(viewModel.state.showsRetry)
-        XCTAssertFalse(viewModel.state.showsWorkoutPlaceholders)
+        XCTAssertTrue(viewModel.state.hidesWorkoutStack)
+        XCTAssertFalse(viewModel.state.showsLoadingIndicator)
 
         let loading = expectation(description: "retry loading")
         loading.assertForOverFulfill = false
@@ -172,16 +174,163 @@ final class CalendarViewModelTests: XCTestCase {
                 loaded.fulfill()
             }
         }
-        viewModel.load()
+        viewModel.loadWorkouts()
         await fulfillment(of: [loading], timeout: 1)
         XCTAssertFalse(viewModel.state.showsRetry)
-        XCTAssertTrue(viewModel.state.showsWorkoutPlaceholders)
+        XCTAssertTrue(viewModel.state.showsLoadingIndicator)
+        XCTAssertTrue(viewModel.state.hidesWorkoutStack)
+        XCTAssertTrue(viewModel.state.days.flatMap(\.workouts).isEmpty)
         let retryFetchStarted = await waitUntil { api.isWaiting }
         XCTAssertTrue(retryFetchStarted)
         api.resume(.success(dto))
         await fulfillment(of: [loaded], timeout: 1)
         XCTAssertNil(viewModel.state.errorMessage)
         XCTAssertEqual(workout(viewModel, id: "past")?.title, "Legs day")
+    }
+
+    func testColdStartHidesWorkoutsUntilNetworkReturns() async {
+        let api = GatedAPI()
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: api,
+                fallback: failingFallback(),
+                cache: InMemoryWorkoutsCache(),
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        viewModel.loadWorkouts()
+        let fetchStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(fetchStarted)
+        XCTAssertEqual(viewModel.state.phase, .initialLoading)
+        XCTAssertTrue(viewModel.state.showsLoadingIndicator)
+        XCTAssertTrue(viewModel.state.hidesWorkoutStack)
+        XCTAssertTrue(viewModel.state.days.flatMap(\.workouts).isEmpty)
+
+        api.resume(.success(dto))
+        let loaded = await waitUntil { viewModel.state.phase == .loaded }
+        XCTAssertTrue(loaded)
+        XCTAssertFalse(viewModel.state.hidesWorkoutStack)
+        XCTAssertFalse(viewModel.state.showsLoadingIndicator)
+        XCTAssertEqual(workout(viewModel, id: "past")?.title, "Legs day")
+    }
+
+    func testFallbackAfterNetworkFailureShowsBannerAndCards() async {
+        let fallback = WorkoutsResponseDTO(data: [
+            DayDTO(id: "d0", day: 0, assignments: [
+                AssignmentDTO(id: "fb", title: "Sample legs", status: 1, totalExercise: 2)
+            ])
+        ])
+        let api = GatedAPI()
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: api,
+                fallback: StubFallback(result: .success(fallback)),
+                cache: InMemoryWorkoutsCache(),
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        viewModel.loadWorkouts()
+        let fetchStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(fetchStarted)
+        XCTAssertEqual(viewModel.state.phase, .initialLoading)
+        XCTAssertTrue(viewModel.state.days.flatMap(\.workouts).isEmpty)
+
+        api.resume(.failure(WorkoutsError.network(URLError(.notConnectedToInternet))))
+        let showedFallback = await waitUntil {
+            viewModel.state.phase == .loaded && workout(viewModel, id: "fb") != nil
+        }
+        XCTAssertTrue(showedFallback)
+        XCTAssertEqual(viewModel.state.errorMessage, "Couldn't reach the server. Showing sample workouts.")
+        XCTAssertTrue(viewModel.state.showsRetry)
+        XCTAssertFalse(viewModel.state.hidesWorkoutStack)
+        XCTAssertEqual(workout(viewModel, id: "fb")?.title, "Sample legs")
+    }
+
+    func testRefreshWorkoutsKeepsCachedCardsVisibleWhileFetching() async {
+        let cache = InMemoryWorkoutsCache()
+        try? await cache.save(dto)
+        let api = GatedAPI()
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: api,
+                fallback: failingFallback(),
+                cache: cache,
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        viewModel.loadWorkouts()
+        let sawCache = await waitUntil { workout(viewModel, id: "past")?.title == "Legs day" }
+        XCTAssertTrue(sawCache)
+        let firstFetch = await waitUntil { api.isWaiting }
+        XCTAssertTrue(firstFetch)
+        api.resume(.success(dto))
+        let settled = await waitUntil { viewModel.state.phase == .loaded }
+        XCTAssertTrue(settled)
+
+        viewModel.refreshWorkouts()
+        let refreshStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(refreshStarted)
+        XCTAssertEqual(viewModel.state.phase, .refreshing)
+        XCTAssertTrue(viewModel.state.isUserRefresh)
+        XCTAssertFalse(viewModel.state.hidesWorkoutStack)
+        XCTAssertEqual(workout(viewModel, id: "past")?.title, "Legs day")
+
+        let network = WorkoutsResponseDTO(data: [
+            DayDTO(id: "d0", day: 0, assignments: [
+                AssignmentDTO(id: "past", title: "Pulled legs", status: 1, totalExercise: 5)
+            ])
+        ])
+        api.resume(.success(network))
+        let refreshed = await waitUntil { workout(viewModel, id: "past")?.title == "Pulled legs" }
+        XCTAssertTrue(refreshed)
+        XCTAssertEqual(viewModel.state.phase, .loaded)
+        XCTAssertFalse(viewModel.state.isUserRefresh)
+    }
+
+    func testToggleDoesNotClearPresentableDataAndRefreshStillFetches() async {
+        let api = GatedAPI()
+        let viewModel = CalendarViewModel(
+            repository: WorkoutsRepository(
+                api: api,
+                fallback: failingFallback(),
+                cache: InMemoryWorkoutsCache(),
+                completions: InMemoryCompletionStore()
+            ),
+            now: { [today] in today! },
+            calendar: calendar
+        )
+
+        viewModel.loadWorkouts()
+        let firstFetch = await waitUntil { api.isWaiting }
+        XCTAssertTrue(firstFetch)
+        api.resume(.success(dto))
+        let settled = await waitUntil { viewModel.state.phase == .loaded }
+        XCTAssertTrue(settled)
+
+        viewModel.toggleCompletion(id: "past")
+        XCTAssertEqual(workout(viewModel, id: "past")?.displayStatus, .completed)
+        XCTAssertEqual(viewModel.state.phase, .loaded)
+
+        viewModel.refreshWorkouts()
+        let refreshStarted = await waitUntil { api.isWaiting }
+        XCTAssertTrue(refreshStarted)
+        XCTAssertEqual(viewModel.state.phase, .refreshing)
+        XCTAssertFalse(viewModel.state.hidesWorkoutStack)
+        XCTAssertEqual(workout(viewModel, id: "past")?.displayStatus, .completed)
+
+        api.resume(.success(dto))
+        let reloaded = await waitUntil { viewModel.state.phase == .loaded }
+        XCTAssertTrue(reloaded)
+        XCTAssertEqual(workout(viewModel, id: "past")?.displayStatus, .completed)
     }
 
     func testRefreshFailureWithCacheDoesNotShowError() async {
@@ -264,7 +413,7 @@ final class CalendarViewModelTests: XCTestCase {
                 loaded.fulfill()
             }
         }
-        viewModel.load()
+        viewModel.loadWorkouts()
         await fulfillment(of: [loaded], timeout: 1)
         viewModel.onChange = nil
     }

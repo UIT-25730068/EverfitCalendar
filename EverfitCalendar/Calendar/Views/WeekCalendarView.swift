@@ -11,6 +11,7 @@ final class WeekCalendarView: UIView {
         let scrollView = UIScrollView()
         scrollView.alwaysBounceVertical = true
         scrollView.showsHorizontalScrollIndicator = false
+        scrollView.showsVerticalScrollIndicator = false
         scrollView.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: CalendarStyle.screenBottomPadding, right: 0)
         scrollView.contentInsetAdjustmentBehavior = .never
         scrollView.insetsLayoutMarginsFromSafeArea = false
@@ -55,18 +56,29 @@ final class WeekCalendarView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func configure(days: [CalendarDay], showsPlaceholders: Bool) {
-        for (index, row) in rows.enumerated() {
-            guard days.indices.contains(index) else {
-                row.isHidden = true
-                continue
+    func installRefreshControl(_ refreshControl: UIRefreshControl) {
+        scrollView.refreshControl = refreshControl
+    }
+
+    func configure(
+        days: [CalendarDay],
+        hidesWorkoutStack: Bool,
+        workoutAlpha: CGFloat
+    ) {
+        UIView.performWithoutAnimation {
+            for (index, row) in rows.enumerated() {
+                guard days.indices.contains(index) else {
+                    row.isHidden = true
+                    continue
+                }
+                row.isHidden = false
+                row.configure(
+                    day: days[index],
+                    hidesWorkoutStack: hidesWorkoutStack,
+                    workoutAlpha: workoutAlpha
+                )
             }
-            row.isHidden = false
-            row.configure(
-                day: days[index],
-                showsPlaceholder: showsPlaceholders,
-                showsSeparator: true
-            )
+            layoutIfNeeded()
         }
     }
 

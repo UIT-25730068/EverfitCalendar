@@ -6,11 +6,13 @@
 import Foundation
 
 enum DataPhase: Equatable {
-    /// Dates are visible; workout area shows placeholders. No valid payload yet.
+    /// Reading disk before deciding between a warm launch and a cold load.
+    case checkingCache
+    /// Dates only; large spinner. No workout cards or fallback while the first network attempt is in flight.
     case initialLoading
     /// A valid week payload is on screen.
     case loaded
-    /// A valid week is on screen while a background refresh is in flight.
+    /// Cached cards stay on screen while a network refresh is in flight.
     case refreshing
     /// No valid payload; user can retry.
     case failedEmpty
@@ -21,8 +23,23 @@ struct CalendarViewState: Equatable {
     var phase: DataPhase
     var errorMessage: String?
     var showsRetry: Bool
+    var isUserRefresh: Bool
 
-    var showsWorkoutPlaceholders: Bool {
+    var showsLoadingIndicator: Bool {
         phase == .initialLoading
+    }
+
+    /// Hide the workout column only when there is nothing to show (cold start / empty error).
+    /// Cached or already-loaded cards stay visible while a background fetch runs.
+    var hidesWorkoutStack: Bool {
+        days.allSatisfy(\.workouts.isEmpty)
+    }
+
+    var showsBackgroundRefreshIndicator: Bool {
+        phase == .refreshing && !isUserRefresh
+    }
+
+    var workoutContentAlpha: Double {
+        1
     }
 }
